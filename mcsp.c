@@ -45,7 +45,6 @@ static struct argp_option options[] = {
     {"directed", 'i', 0, 0, "Use directed graphs"},
     {"labelled", 'a', 0, 0, "Use edge and vertex labels"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
-    {"big-first", 'b', 0, 0, "First try to find an induced subgraph isomorphism, then decrement the target size"},
     {"timeout", 't', "timeout", 0, "Specify a timeout (seconds)"},
     { 0 }
 };
@@ -59,7 +58,6 @@ static struct {
     bool directed;
     bool edge_labelled;
     bool vertex_labelled;
-    bool big_first;
     Heuristic heuristic;
     char *filename1;
     char *filename2;
@@ -78,7 +76,6 @@ void set_default_arguments() {
     arguments.directed = false;
     arguments.edge_labelled = false;
     arguments.vertex_labelled = false;
-    arguments.big_first = false;
     arguments.filename1 = NULL;
     arguments.filename2 = NULL;
     arguments.timeout = 0;
@@ -123,9 +120,6 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             if (arguments.edge_labelled)
                 fail("The -a and -x options can't be used together.");
             arguments.vertex_labelled = true;
-            break;
-        case 'b':
-            arguments.big_first = true;
             break;
         case 't':
             arguments.timeout = std::stoi(arg);
@@ -388,7 +382,7 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
     if (bound <= incumbent.size() || bound < matching_size_goal)
         return;
 
-    if (arguments.big_first && incumbent.size()==matching_size_goal)
+    if (incumbent.size()==matching_size_goal)
         return;
 
     int bd_idx = select_bidomain(domains, left, current.size());
@@ -457,23 +451,9 @@ vector<VtxPair> mcs(const Graph & g0, const Graph & g1) {
     }
 
     vector<VtxPair> incumbent;
-
-    if (arguments.big_first) {
-        for (int k=0; k<g0.n; k++) {
-            unsigned int goal = g0.n - k;
-            auto left_copy = left;
-            auto right_copy = right;
-            auto domains_copy = domains;
-            vector<VtxPair> current;
-            solve(g0, g1, incumbent, current, domains_copy, left_copy, right_copy, goal);
-            if (incumbent.size() == goal || abort_due_to_timeout) break;
-            if (!arguments.quiet) cout << "Upper bound: " << goal-1 << std::endl;
-        }
-
-    } else {
-        vector<VtxPair> current;
-        solve(g0, g1, incumbent, current, domains, left, right, 1);
-    }
+    vector<VtxPair> current;
+    unsigned int goal = std::min(g0.n, g1.n);
+    solve(g0, g1, incumbent, current, domains, left, right, goal);
 
     return incumbent;
 }
@@ -534,8 +514,8 @@ int main(int argc, char** argv) {
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
 
-    // As implemented here, g1_dense and g0_dense are false for all instances
-    // in the Experimental Evaluation section of the paper.  Thus,
+    // TODO: As implemented here, g1_dense and g0_dense are false for all instances
+    // in the Experimental Evaluation section of the IJCAI 2017 paper.  Thus,
     // we always sort the vertices in descending order of degree (or total degree,
     // in the case of directed graphs.  Improvements could be made here: it would
     // be nice if the program explored exactly the same search tree if both
@@ -577,19 +557,26 @@ int main(int argc, char** argv) {
         timeout_thread.join();
     }
 
-    if (!check_sol(g0, g1, solution))
-        fail("*** Error: Invalid solution\n");
-
-    cout << "Solution size " << solution.size() << std::endl;
-    for (int i=0; i<g0.n; i++)
-        for (unsigned int j=0; j<solution.size(); j++)
-            if (solution[j].v == i)
-                cout << "(" << solution[j].v << " -> " << solution[j].w << ") ";
-    cout << std::endl;
 
     cout << "Nodes:                      " << nodes << endl;
     cout << "CPU time (ms):              " << time_elapsed << endl;
-    if (aborted)
+    if (aborted) {
         cout << "TIMEOUT" << endl;
+    } else {
+        if (!check_sol(g0, g1, solution))
+            fail("*** Error: Invalid solution\n");
+
+        if ((int)solution.size() == std::min(g0.n, g1.n)) {
+            cout << "Solution size " << solution.size() << std::endl;
+            std::cout << "SATISFIABLE" << std::endl;
+            for (int i=0; i<g0.n; i++)
+                for (unsigned int j=0; j<solution.size(); j++)
+                    if (solution[j].v == i)
+                        cout << "(" << solution[j].v << " -> " << solution[j].w << ") ";
+            cout << std::endl;
+        } else {
+            std::cout << "UNSATISFIABLE" << std::endl;
+        }
+    }
 }
 
