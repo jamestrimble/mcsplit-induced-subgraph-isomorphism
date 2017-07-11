@@ -489,6 +489,11 @@ int main(int argc, char** argv) {
     struct Graph g1 = readGraph(arguments.filename2, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
 
+    if (g0.n > g1.n) {
+        std::cout << "Error: pattern graph has more vertices than target graph." << std::endl;
+        return 1;
+    }
+
     std::thread timeout_thread;
     std::mutex timeout_mutex;
     std::condition_variable timeout_cv;
