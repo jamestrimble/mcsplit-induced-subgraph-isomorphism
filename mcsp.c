@@ -380,7 +380,7 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
 
     if (current.size() > incumbent.size()) {
         incumbent = current;
-        if (!arguments.quiet) cout << "Incumbent size: " << incumbent.size() << endl;
+        //if (!arguments.quiet) cout << "Incumbent size: " << incumbent.size() << endl;
     }
 
     unsigned int bound = current.size() + calc_bound(domains);
