@@ -41,7 +41,6 @@ static struct argp_option options[] = {
     {"verbose", 'v', 0, 0, "Verbose output"},
     {"dimacs", 'd', 0, 0, "Read DIMACS format"},
     {"lad", 'l', 0, 0, "Read LAD format"},
-    {"connected", 'c', 0, 0, "Solve max common CONNECTED subgraph problem"},
     {"directed", 'i', 0, 0, "Use directed graphs"},
     {"enumerate", 'e', 0, 0, "Count solutions"},
     {"labelled", 'a', 0, 0, "Use edge and vertex labels"},
@@ -55,7 +54,6 @@ static struct {
     bool verbose;
     bool dimacs;
     bool lad;
-    bool connected;
     bool directed;
     bool enumerate;
     bool edge_labelled;
@@ -74,7 +72,6 @@ void set_default_arguments() {
     arguments.verbose = false;
     arguments.dimacs = false;
     arguments.lad = false;
-    arguments.connected = false;
     arguments.directed = false;
     arguments.enumerate = false;
     arguments.edge_labelled = false;
@@ -103,14 +100,7 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'v':
             arguments.verbose = true;
             break;
-        case 'c':
-            if (arguments.directed)
-                fail("The connected and directed options can't be used together.");
-            arguments.connected = true;
-            break;
         case 'i':
-            if (arguments.connected)
-                fail("The connected and directed options can't be used together.");
             arguments.directed = true;
             break;
         case 'e':
@@ -257,7 +247,6 @@ int select_bidomain(const vector<Bidomain>& domains, const vector<int> & left,
     int best = -1;
     for (unsigned int i=0; i<domains.size(); i++) {
         const Bidomain &bd = domains[i];
-        if (arguments.connected && current_matching_size>0 && !bd.is_adjacent) continue;
         int len = arguments.heuristic == min_max ?
                 std::max(bd.left_len, bd.right_len) :
                 bd.left_len * bd.right_len;
