@@ -43,6 +43,7 @@ static struct argp_option options[] = {
     {"lad", 'l', 0, 0, "Read LAD format"},
     {"connected", 'c', 0, 0, "Solve max common CONNECTED subgraph problem"},
     {"directed", 'i', 0, 0, "Use directed graphs"},
+    {"enumerate", 'e', 0, 0, "Count solutions"},
     {"labelled", 'a', 0, 0, "Use edge and vertex labels"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
     {"timeout", 't', "timeout", 0, "Specify a timeout (seconds)"},
@@ -56,6 +57,7 @@ static struct {
     bool lad;
     bool connected;
     bool directed;
+    bool enumerate;
     bool edge_labelled;
     bool vertex_labelled;
     Heuristic heuristic;
@@ -74,6 +76,7 @@ void set_default_arguments() {
     arguments.lad = false;
     arguments.connected = false;
     arguments.directed = false;
+    arguments.enumerate = false;
     arguments.edge_labelled = false;
     arguments.vertex_labelled = false;
     arguments.filename1 = NULL;
@@ -109,6 +112,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             if (arguments.connected)
                 fail("The connected and directed options can't be used together.");
             arguments.directed = true;
+            break;
+        case 'e':
+            arguments.enumerate = true;
             break;
         case 'a':
             if (arguments.vertex_labelled)
@@ -370,12 +376,12 @@ void remove_bidomain(vector<Bidomain>& domains, int idx) {
 
 void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         vector<VtxPair> & current, vector<Bidomain> & domains,
-        vector<int> & left, vector<int> & right, unsigned int matching_size_goal)
+        vector<int> & left, vector<int> & right, long long & solution_count)
 {
     if (abort_due_to_timeout)
         return;
 
-    if (arguments.verbose) show(current, domains, left, right);
+//    if (arguments.verbose) show(current, domains, left, right);
     nodes++;
 
     if (current.size() > incumbent.size()) {
@@ -383,15 +389,20 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         //if (!arguments.quiet) cout << "Incumbent size: " << incumbent.size() << endl;
     }
 
-    unsigned int bound = current.size() + calc_bound(domains);
-    if (bound <= incumbent.size() || bound < matching_size_goal)
+    if (current.size()==(unsigned)g0.n) {
+        solution_count++;
+        return;
+    }
+
+    if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    if (incumbent.size()==matching_size_goal)
+    unsigned int bound = current.size() + calc_bound(domains);
+    if (bound < (unsigned)g0.n)
         return;
 
     int bd_idx = select_bidomain(domains, left, current.size());
-    if (bd_idx == -1)   // In the MCCS case, there may be nothing we can branch on
+    if (bd_idx == -1)   // Return if there's nothing left to branch on
         return;
     Bidomain &bd = domains[bd_idx];
 
@@ -412,16 +423,18 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
         current.push_back(VtxPair(v, w));
-        solve(g0, g1, incumbent, current, new_domains, left, right, matching_size_goal);
+        solve(g0, g1, incumbent, current, new_domains, left, right, solution_count);
         current.pop_back();
     }
     bd.right_len++;
     if (bd.left_len == 0)
         remove_bidomain(domains, bd_idx);
-    solve(g0, g1, incumbent, current, domains, left, right, matching_size_goal);
+    solve(g0, g1, incumbent, current, domains, left, right, solution_count);
 }
 
-vector<VtxPair> mcs(const Graph & g0, const Graph & g1) {
+// Returns a common subgraph and the number of induced subgraph isomorphisms found
+std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
+{
     vector<int> left;  // the buffer of vertex indices for the left partitions
     vector<int> right;  // the buffer of vertex indices for the right partitions
 
@@ -457,10 +470,10 @@ vector<VtxPair> mcs(const Graph & g0, const Graph & g1) {
 
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
-    unsigned int goal = std::min(g0.n, g1.n);
-    solve(g0, g1, incumbent, current, domains, left, right, goal);
+    long long solution_count = 0;
+    solve(g0, g1, incumbent, current, domains, left, right, solution_count);
 
-    return incumbent;
+    return {incumbent, solution_count};
 }
 
 vector<int> calculate_degrees(const Graph & g) {
@@ -546,7 +559,9 @@ int main(int argc, char** argv) {
     struct Graph g0_sorted = induced_subgraph(g0, vv0);
     struct Graph g1_sorted = induced_subgraph(g1, vv1);
 
-    vector<VtxPair> solution = mcs(g0_sorted, g1_sorted);
+    auto result = mcs(g0_sorted, g1_sorted);
+    vector<VtxPair> solution = result.first;
+    long long num_sols = result.second;
 
     // Convert to indices from original, unsorted graphs
     for (auto& vtx_pair : solution) {
@@ -576,6 +591,9 @@ int main(int argc, char** argv) {
         if (!check_sol(g0, g1, solution))
             fail("*** Error: Invalid solution\n");
 
+        if (arguments.enumerate) {
+            std::cout << "Number of solutions: " << num_sols << std::endl;
+        }
         if ((int)solution.size() == std::min(g0.n, g1.n)) {
             cout << "Solution size " << solution.size() << std::endl;
             std::cout << "SATISFIABLE" << std::endl;
