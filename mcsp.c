@@ -235,7 +235,6 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
 
     std::vector<int> left_deg(bd.left_len, 0);   // Degree in the subgraph induced by the left set of bd
     std::vector<int> right_deg(bd.right_len, 0);   // Degree in the subgraph induced by the right set of bd
-    right_deg.reserve(bd.right_len);
     for (int i=0; i<bd.left_len; i++) {
         int v = left[bd.l + i];
         for (int j=0; j<i; j++) {
@@ -261,7 +260,7 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
     std::sort(std::begin(right_deg), std::end(right_deg));
 
     //std::cout << left_deg[0] << " " << right_deg[0] << std::endl;
-    for (auto i=0u; i<left_deg.size(); i++) {
+    for (int i=0; i<bd.left_len; i++) {
 //        std::cout << i << " " << left_deg.size() << " " << bd.left_len << std::endl;
         // Check neighbourhood degree sequence
         if (left_deg[bd.left_len-1-i] > right_deg[bd.right_len-1-i])
@@ -283,10 +282,10 @@ int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
     }
 #ifdef TIGHTER_BOUNDING
     if (bound < target)
-        return -1;
+        return 0;   // bactrack
     for (const Bidomain &bd : domains) {
         if (can_backtrack_using_degrees_within_bidomain(bd, left, right, g0, g1)) {
-            return -1;
+            return 0;  // backtrack
         }
     }
 #endif
@@ -450,9 +449,9 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    unsigned int bound = current.size() + calc_bound(
+    int bound = current.size() + calc_bound(
             domains, left, right, g0, g1, g0.n - current.size());
-    if (bound < (unsigned)g0.n)
+    if (bound < g0.n)
         return;
 
     int bd_idx = select_bidomain(domains, left, current.size());
