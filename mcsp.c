@@ -230,7 +230,8 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
     if (bd.left_len > bd.right_len)
         return true;
 
-    if (bd.left_len > MAX_SIZE_FOR_STRONGER_BOUND || bd.right_len > bd.left_len * MAX_RATIO_FOR_STRONGER_BOUND)
+    // Don't bother with this procedure if it's likely to be expensive or ineffective
+    if (bd.left_len == 1 || bd.left_len > MAX_SIZE_FOR_STRONGER_BOUND || bd.right_len > bd.left_len * MAX_RATIO_FOR_STRONGER_BOUND)
         return false;
 
     std::vector<int> left_deg(bd.left_len, 0);   // Degree in the subgraph induced by the left set of bd
