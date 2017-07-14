@@ -19,6 +19,9 @@
 #include <stdlib.h>
 #include <string.h>
 
+#define MAX_SIZE_FOR_STRONGER_BOUND 30
+#define MAX_RATIO_FOR_STRONGER_BOUND 1.5
+
 using std::vector;
 using std::cout;
 using std::endl;
@@ -221,11 +224,72 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
     return true;
 }
 
-int calc_bound(const vector<Bidomain>& domains) {
+bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int> & left,
+        vector<int> & right, const Graph & g0, const Graph & g1)
+{
+    if (bd.left_len > bd.right_len)
+        return true;
+
+    if (bd.left_len > MAX_SIZE_FOR_STRONGER_BOUND || bd.right_len > bd.left_len * MAX_RATIO_FOR_STRONGER_BOUND)
+        return false;
+
+    std::vector<int> left_deg(bd.left_len, 0);   // Degree in the subgraph induced by the left set of bd
+    std::vector<int> right_deg(bd.right_len, 0);   // Degree in the subgraph induced by the right set of bd
+    right_deg.reserve(bd.right_len);
+    for (int i=0; i<bd.left_len; i++) {
+        int v = left[bd.l + i];
+        for (int j=0; j<i; j++) {
+            int w = left[bd.l + j];
+            if (g0.adjmat[v][w]) {
+                left_deg[i]++;
+                left_deg[j]++;
+            }
+        }
+    }
+    for (int i=0; i<bd.right_len; i++) {
+        int v = right[bd.r + i];
+        for (int j=0; j<i; j++) {
+            int w = right[bd.r + j];
+            if (g1.adjmat[v][w]) {
+                right_deg[i]++;
+                right_deg[j]++;
+            }
+        }
+    }
+
+    std::sort(std::begin(left_deg), std::end(left_deg));
+    std::sort(std::begin(right_deg), std::end(right_deg));
+
+    //std::cout << left_deg[0] << " " << right_deg[0] << std::endl;
+    for (auto i=0u; i<left_deg.size(); i++) {
+//        std::cout << i << " " << left_deg.size() << " " << bd.left_len << std::endl;
+        // Check neighbourhood degree sequence
+        if (left_deg[bd.left_len-1-i] > right_deg[bd.right_len-1-i])
+            return true;
+        // Check neighbourhood degree sequence in complement graph
+        if (bd.left_len-1-left_deg[i] > bd.right_len-1-right_deg[i])
+            return true;
+    }
+
+    return false;
+}
+
+int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
+        vector<int> & right, const Graph & g0, const Graph & g1, int target)
+{
     int bound = 0;
     for (const Bidomain &bd : domains) {
         bound += std::min(bd.left_len, bd.right_len);
     }
+#ifdef TIGHTER_BOUNDING
+    if (bound < target)
+        return -1;
+    for (const Bidomain &bd : domains) {
+        if (can_backtrack_using_degrees_within_bidomain(bd, left, right, g0, g1)) {
+            return -1;
+        }
+    }
+#endif
     return bound;
 }
 
@@ -386,7 +450,8 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    unsigned int bound = current.size() + calc_bound(domains);
+    unsigned int bound = current.size() + calc_bound(
+            domains, left, right, g0, g1, g0.n - current.size());
     if (bound < (unsigned)g0.n)
         return;
 
