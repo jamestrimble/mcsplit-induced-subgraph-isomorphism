@@ -450,7 +450,7 @@ int choose_v(
         int v = left[left_start + i];
         int num_possible_assignments = 0;
         for (int j=0; j<right_len; j++) {
-            int w = right[right_start + i];
+            int w = right[right_start + j];
             if (!assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist)) {
                 num_possible_assignments++;
             }
