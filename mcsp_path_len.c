@@ -465,6 +465,7 @@ int choose_v(
 }
 
 void solve(const Graph & g0, const Graph & g1,
+        const vector<int>& g0_deg, const vector<int>& g1_deg,
         const vector<vector<int>> & g0_min_dist, const vector<vector<int>> & g1_min_dist,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
         vector<int> & left, vector<int> & right, long long & solution_count)
@@ -514,11 +515,11 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + idx] = right[bd.r + bd.right_len];
         right[bd.r + bd.right_len] = w;
 
-        if (!assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist)) {
+        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist)) {
             auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
                     arguments.directed || arguments.edge_labelled);
             current.push_back(VtxPair(v, w));
-            solve(g0, g1, g0_min_dist, g1_min_dist, incumbent, current, new_domains, left, right, solution_count);
+            solve(g0, g1, g0_deg, g1_deg, g0_min_dist, g1_min_dist, incumbent, current, new_domains, left, right, solution_count);
             current.pop_back();
         }
     }
@@ -559,6 +560,18 @@ void show_min_dists(vector<vector<int>>& dists)
         std::cout << std::endl;
     }
     std::cout << std::endl;
+}
+
+vector<int> calculate_degrees(const Graph & g) {
+    vector<int> degree(g.n, 0);
+    for (int v=0; v<g.n; v++) {
+        for (int w=0; w<g.n; w++) {
+            unsigned int mask = 0xFFFFu;
+            if (g.adjmat[v][w] & mask) degree[v]++;
+            if (g.adjmat[v][w] & ~mask) degree[v]++;  // inward edge, in directed case
+        }
+    }
+    return degree;
 }
 
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
@@ -605,24 +618,15 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
         domains.push_back({start_l, start_r, left_len, right_len, false});
     }
 
+    vector<int> g0_deg = calculate_degrees(g0);
+    vector<int> g1_deg = calculate_degrees(g1);
+
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, g0_min_dist, g1_min_dist, incumbent, current, domains, left, right, solution_count);
+    solve(g0, g1, g0_deg, g1_deg, g0_min_dist, g1_min_dist, incumbent, current, domains, left, right, solution_count);
 
     return {incumbent, solution_count};
-}
-
-vector<int> calculate_degrees(const Graph & g) {
-    vector<int> degree(g.n, 0);
-    for (int v=0; v<g.n; v++) {
-        for (int w=0; w<g.n; w++) {
-            unsigned int mask = 0xFFFFu;
-            if (g.adjmat[v][w] & mask) degree[v]++;
-            if (g.adjmat[v][w] & ~mask) degree[v]++;  // inward edge, in directed case
-        }
-    }
-    return degree;
 }
 
 int sum(const vector<int> & vec) {
