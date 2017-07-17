@@ -627,22 +627,22 @@ vector<vector<int>> count_2paths(const Graph & g)
 vector<vector<int>> count_3paths(const Graph & g)
 {
     vector<vector<int>> num_3paths(g.n, vector<int>(g.n, 0));
-    for (int i=0; i<g.n; i++) {
-        for (int k=0; k<g.n; k++) {
-            if (g.adjmat[i][k]) {
-                for (int l=0; l<g.n; l++) {
-                    if (l!=i && g.adjmat[k][l]) {
-                        for (int j=0; j<i; j++) {
-                            if (j!=i && j!=k && g.adjmat[l][j]) {
-                                num_3paths[i][j]--;
-                                num_3paths[j][i]--;
-                            }
-                        }
-                    }
-                }
-            }
-        }
-    }
+//    for (int i=0; i<g.n; i++) {
+//        for (int k=0; k<g.n; k++) {
+//            if (g.adjmat[i][k]) {
+//                for (int l=0; l<g.n; l++) {
+//                    if (l!=i && g.adjmat[k][l]) {
+//                        for (int j=0; j<i; j++) {
+//                            if (j!=i && j!=k && g.adjmat[l][j]) {
+//                                num_3paths[i][j]--;
+//                                num_3paths[j][i]--;
+//                            }
+//                        }
+//                    }
+//                }
+//            }
+//        }
+//    }
     return num_3paths;
 }
 
