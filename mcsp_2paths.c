@@ -364,7 +364,7 @@ int select_bidomain(const vector<Bidomain>& domains,
     int best = -1;
     for (unsigned int i=0; i<domains.size(); i++) {
         const Bidomain &bd = domains[i];
-        if (bd.right_len > 15)
+        if (bd.right_len > 15 && domains.size() != 1)
             continue;
 //        int len = arguments.heuristic == min_max ?
 //                std::max(bd.left_len, bd.right_len) :
@@ -390,7 +390,7 @@ int select_bidomain(const vector<Bidomain>& domains,
     if (best == -1) {
         for (unsigned int i=0; i<domains.size(); i++) {
             const Bidomain &bd = domains[i];
-            if (bd.right_len <= 15)
+            if (bd.right_len <= 15 || domains.size() <= 1)
                 continue;
             int len = arguments.heuristic == min_max ?
                     std::max(bd.left_len, bd.right_len) :
