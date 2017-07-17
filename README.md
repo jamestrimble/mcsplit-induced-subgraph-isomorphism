@@ -6,3 +6,6 @@ of the pattern graph.  In addition, there is a small optimisation
 that stops splitting early if possible
 (commits a250c4550680eda61ef2c78922a27e64e8715f90 and 23a9ec068db6f6ce80d0fd86d675808858580461);
 this sometimes reduces the amount of work per search node.
+
+The programs `mcsp_path_len.c` and `mcsp_2paths.c` are unbelievably hacky attempts at finding
+a faster version.
