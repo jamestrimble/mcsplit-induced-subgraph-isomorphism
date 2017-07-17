@@ -302,12 +302,12 @@ int find_min_value(const vector<int>& arr, int start_idx, int len) {
 }
 
 bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& current,
-        const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist,
+        const vector<vector<int>>& g0_3p, const vector<vector<int>>& g1_3p,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p
         )
 {
     for (auto pair : current) {
-        if (g0_min_dist[v][pair.v] < g1_min_dist[w][pair.w]) {
+        if (g0_3p[v][pair.v] < g1_3p[w][pair.w]) {
             return true;
         }
         if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
@@ -320,7 +320,7 @@ bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& 
 int min_num_poss_assignments(
         const vector<int>& left, int left_start, int left_len,
         const vector<int>& right, int right_start, int right_len,
-        const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist,
+        const vector<vector<int>>& g0_3p, const vector<vector<int>>& g1_3p,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -333,7 +333,7 @@ int min_num_poss_assignments(
         int num_possible_assignments = 0;
         for (int j=0; j<right_len; j++) {
             int w = right[right_start + j];
-            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist, g0_2p, g1_2p)) {
+            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_3p, g1_3p, g0_2p, g1_2p)) {
                 num_possible_assignments++;
             }
         }
@@ -351,7 +351,7 @@ int min_num_poss_assignments(
 int select_bidomain(const vector<Bidomain>& domains,
         const vector<int> & left,
         const vector<int> & right,
-        const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist,
+        const vector<vector<int>>& g0_3p, const vector<vector<int>>& g1_3p,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -371,7 +371,7 @@ int select_bidomain(const vector<Bidomain>& domains,
 //                bd.left_len * bd.right_len;
         int len = min_num_poss_assignments(left, bd.l, bd.left_len,
                 right, bd.r, bd.right_len,
-                g0_min_dist, g1_min_dist,
+                g0_3p, g1_3p,
                 g0_2p, g1_2p,
                 g0_deg, g1_deg,
                 current);
@@ -512,7 +512,7 @@ void remove_bidomain(vector<Bidomain>& domains, int idx) {
 int choose_v(
         const vector<int>& left, int left_start, int left_len,
         const vector<int>& right, int right_start, int right_len,
-        const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist,
+        const vector<vector<int>>& g0_3p, const vector<vector<int>>& g1_3p,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -525,7 +525,7 @@ int choose_v(
         int num_possible_assignments = 0;
         for (int j=0; j<right_len; j++) {
             int w = right[right_start + j];
-            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist, g0_2p, g1_2p)) {
+            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_3p, g1_3p, g0_2p, g1_2p)) {
                 num_possible_assignments++;
             }
         }
@@ -542,7 +542,7 @@ int choose_v(
 
 void solve(const Graph & g0, const Graph & g1,
         const vector<int>& g0_deg, const vector<int>& g1_deg,
-        const vector<vector<int>> & g0_min_dist, const vector<vector<int>> & g1_min_dist,
+        const vector<vector<int>> & g0_3p, const vector<vector<int>> & g1_3p,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
         vector<int> & left, vector<int> & right, long long & solution_count)
@@ -572,13 +572,13 @@ void solve(const Graph & g0, const Graph & g1,
         return;
 
     int bd_idx = select_bidomain(domains, left, right,
-            g0_min_dist, g1_min_dist, g0_2p, g1_2p, g0_deg, g1_deg, current);
+            g0_3p, g1_3p, g0_2p, g1_2p, g0_deg, g1_deg, current);
     if (bd_idx == -1)   // Return if there's nothing left to branch on
         return;
     Bidomain &bd = domains[bd_idx];
 
     int v = choose_v(left, bd.l, bd.left_len, right, bd.r, bd.right_len,
-            g0_min_dist, g1_min_dist, g0_2p, g1_2p, g0_deg, g1_deg, current);
+            g0_3p, g1_3p, g0_2p, g1_2p, g0_deg, g1_deg, current);
     if (v==-1)
         return;
 //    int v = find_min_value(left, bd.l, bd.left_len);
@@ -595,11 +595,11 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + idx] = right[bd.r + bd.right_len];
         right[bd.r + bd.right_len] = w;
 
-        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist, g0_2p, g1_2p)) {
+        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_3p, g1_3p, g0_2p, g1_2p)) {
             auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
                     arguments.directed || arguments.edge_labelled);
             current.push_back(VtxPair(v, w));
-            solve(g0, g1, g0_deg, g1_deg, g0_min_dist, g1_min_dist, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
+            solve(g0, g1, g0_deg, g1_deg, g0_3p, g1_3p, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
             current.pop_back();
         }
     }
@@ -624,27 +624,26 @@ vector<vector<int>> count_2paths(const Graph & g)
     return num_2paths;
 }
 
-vector<vector<int>> all_pairs_shortest_path(const Graph & g)
+vector<vector<int>> count_3paths(const Graph & g)
 {
-    vector<vector<int>> dist(g.n, vector<int>(g.n, 1000000000));
-//    for (int i=0; i<g.n; i++) {
-//        dist[i][i] = 0;
-//        for (int j=0; j<i; j++) {
-//            if (g.adjmat[i][j]) {
-//                dist[i][j] = dist[j][i] = 1;
-//            }
-//        }
-//    }
-//    for (int k=0; k<g.n; k++) {
-//        for (int i=0; i<g.n; i++) {
-//            for (int j=0; j<g.n; j++) {
-//                if (dist[i][j] > dist[i][k] + dist[k][j]) {
-//                    dist[i][j] = dist[i][k] + dist[k][j];
-//                }
-//            }
-//        }
-//    }
-    return dist;
+    vector<vector<int>> num_3paths(g.n, vector<int>(g.n, 0));
+    for (int i=0; i<g.n; i++) {
+        for (int k=0; k<g.n; k++) {
+            if (g.adjmat[i][k]) {
+                for (int l=0; l<g.n; l++) {
+                    if (l!=i && g.adjmat[k][l]) {
+                        for (int j=0; j<i; j++) {
+                            if (j!=i && j!=k && g.adjmat[l][j]) {
+                                num_3paths[i][j]--;
+                                num_3paths[j][i]--;
+                            }
+                        }
+                    }
+                }
+            }
+        }
+    }
+    return num_3paths;
 }
 
 void show_min_dists(vector<vector<int>>& dists)
@@ -679,13 +678,8 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<vector<int>> g0_2p = count_2paths(g0);
     vector<vector<int>> g1_2p = count_2paths(g1);
 
-    vector<vector<int>> g0_min_dist = all_pairs_shortest_path(g0);
-    vector<vector<int>> g1_min_dist = all_pairs_shortest_path(g1);
-
-    if (arguments.verbose) {
-        show_min_dists(g0_min_dist);
-        show_min_dists(g1_min_dist);
-    }
+    vector<vector<int>> g0_3p = count_3paths(g0);
+    vector<vector<int>> g1_3p = count_3paths(g1);
 
     vector<int> left;  // the buffer of vertex indices for the left partitions
     vector<int> right;  // the buffer of vertex indices for the right partitions
@@ -726,7 +720,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, g0_deg, g1_deg, g0_min_dist, g1_min_dist, g0_2p, g1_2p, incumbent, current, domains, left, right, solution_count);
+    solve(g0, g1, g0_deg, g1_deg, g0_3p, g1_3p, g0_2p, g1_2p, incumbent, current, domains, left, right, solution_count);
 
     return {incumbent, solution_count};
 }
