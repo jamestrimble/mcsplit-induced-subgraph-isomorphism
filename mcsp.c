@@ -480,10 +480,6 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         solve(g0, g1, incumbent, current, new_domains, left, right, solution_count);
         current.pop_back();
     }
-    bd.right_len++;
-    if (bd.left_len == 0)
-        remove_bidomain(domains, bd_idx);
-    solve(g0, g1, incumbent, current, domains, left, right, solution_count);
 }
 
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
