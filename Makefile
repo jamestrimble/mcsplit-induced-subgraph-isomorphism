@@ -8,10 +8,10 @@ mcsp: mcsp.c graph.c graph.h
 mcsp_tighter_bounding: mcsp.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_tighter_bounding graph.c mcsp.c -pthread -DTIGHTER_BOUNDING
 
-mcsp_path_len: mcsp.c graph.c graph.h
+mcsp_path_len: mcsp_path_len.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_path_len graph.c mcsp_path_len.c -pthread
 
-mcsp_path_len_tighter_bounding: mcsp.c graph.c graph.h
+mcsp_path_len_tighter_bounding: mcsp_path_len.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_path_len_tighter_bounding graph.c mcsp_path_len.c -pthread -DTIGHTER_BOUNDING
 
 clean:
