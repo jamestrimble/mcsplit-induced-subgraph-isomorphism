@@ -427,7 +427,7 @@ void remove_bidomain(vector<Bidomain>& domains, int idx) {
     domains.pop_back();
 }
 
-bool assignment_impossible_by_path_lengths(int v, int w, vector<VtxPair>& current,
+bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& current,
         const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist)
 {
     for (auto pair : current) {
@@ -436,6 +436,32 @@ bool assignment_impossible_by_path_lengths(int v, int w, vector<VtxPair>& curren
         }
     }
     return false;
+}
+
+int choose_v(
+        const vector<int>& left, int left_start, int left_len,
+        const vector<int>& right, int right_start, int right_len,
+        const vector<vector<int>>& g0_min_dist, const vector<vector<int>>& g1_min_dist,
+        const vector<VtxPair>& current)
+{
+    int best_v = INT_MAX;
+    int lowest_num_possible_assignments = INT_MAX;
+    for (int i=0; i<left_len; i++) {
+        int v = left[left_start + i];
+        int num_possible_assignments = 0;
+        for (int j=0; j<right_len; j++) {
+            int w = right[right_start + i];
+            if (!assignment_impossible_by_path_lengths(v, w, current, g0_min_dist, g1_min_dist)) {
+                num_possible_assignments++;
+            }
+        }
+        if (num_possible_assignments < lowest_num_possible_assignments ||
+                (num_possible_assignments == lowest_num_possible_assignments && v < best_v)) {
+            lowest_num_possible_assignments = num_possible_assignments;
+            best_v = v;
+        }
+    }
+    return best_v;
 }
 
 void solve(const Graph & g0, const Graph & g1,
@@ -472,6 +498,8 @@ void solve(const Graph & g0, const Graph & g1,
         return;
     Bidomain &bd = domains[bd_idx];
 
+//    int v = choose_v(left, bd.l, bd.left_len, right, bd.r, bd.right_len,
+//            g0_min_dist, g1_min_dist, current);
     int v = find_min_value(left, bd.l, bd.left_len);
     remove_vtx_from_left_domain(left, domains[bd_idx], v);
 
