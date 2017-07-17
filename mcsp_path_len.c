@@ -694,7 +694,7 @@ int main(int argc, char** argv) {
     std::iota(std::begin(vv1), std::end(vv1), 0);
     bool g0_dense = sum(g0_deg) > g0.n*(g0.n-1);
     std::stable_sort(std::begin(vv1), std::end(vv1), [&](int a, int b) {
-        return !g0_dense ? (g1_deg[a]<g1_deg[b]) : (g1_deg[a]>g1_deg[b]);
+        return g0_dense ? (g1_deg[a]<g1_deg[b]) : (g1_deg[a]>g1_deg[b]);
     });
 
     struct Graph g0_sorted = induced_subgraph(g0, vv0);
