@@ -493,36 +493,6 @@ void remove_bidomain(vector<Bidomain>& domains, int idx) {
     domains.pop_back();
 }
 
-int choose_v(
-        const vector<int>& left, int left_start, int left_len,
-        const vector<int>& right, int right_start, int right_len,
-        const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
-        const vector<int>& g0_deg,
-        const vector<int>& g1_deg,
-        const vector<VtxPair>& current)
-{
-    int best_v = INT_MAX;
-    int lowest_num_possible_assignments = INT_MAX;
-    for (int i=0; i<left_len; i++) {
-        int v = left[left_start + i];
-        int num_possible_assignments = 0;
-        for (int j=0; j<right_len; j++) {
-            int w = right[right_start + j];
-            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_2p, g1_2p)) {
-                num_possible_assignments++;
-            }
-        }
-//        if (num_possible_assignments == 1)
-//            return v;
-        if (num_possible_assignments < lowest_num_possible_assignments ||
-                (num_possible_assignments == lowest_num_possible_assignments && v < best_v)) {
-            lowest_num_possible_assignments = num_possible_assignments;
-            best_v = v;
-        }
-    }
-    return best_v;
-}
-
 void solve(const Graph & g0, const Graph & g1,
         const vector<int>& g0_deg, const vector<int>& g1_deg,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
@@ -601,20 +571,6 @@ vector<vector<int>> count_2paths(const Graph & g)
         }
     }
     return num_2paths;
-}
-
-void show_min_dists(vector<vector<int>>& dists)
-{
-    for (auto& row : dists) {
-        for (auto& dist : row) {
-            if (dist == 1000000000)
-                std::cout << "." << " ";
-            else
-                std::cout << dist << " ";
-        }
-        std::cout << std::endl;
-    }
-    std::cout << std::endl;
 }
 
 vector<int> calculate_degrees(const Graph & g) {
