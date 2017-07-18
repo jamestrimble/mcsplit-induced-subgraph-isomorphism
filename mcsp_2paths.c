@@ -592,7 +592,7 @@ vector<vector<int>> count_2paths(const Graph & g)
         for (int k=0; k<g.n; k++) {
             if (g.adjmat[i][k]) {
                 for (int j=0; j<i; j++) {
-                    if (j!=i && g.adjmat[k][j]) {
+                    if (g.adjmat[k][j]) {
                         num_2paths[i][j]--;
                         num_2paths[j][i]--;
                     }
