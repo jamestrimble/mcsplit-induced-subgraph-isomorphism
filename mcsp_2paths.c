@@ -355,41 +355,26 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
         const vector<int>& g1_deg,
         const vector<VtxPair>& current)
 {
+    vector<int> bidomain_order(domains.size());
+    std::iota(std::begin(bidomain_order), std::end(bidomain_order), 0);
+    std::sort(bidomain_order.begin(), bidomain_order.end(),
+            [&domains](const int a, const int b) { return domains[a].right_len < domains[b].right_len; });
+
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
     auto best_score = std::make_pair(INT_MAX, INT_MAX);
     int best = -1;
-    for (unsigned int i=0; i<domains.size(); i++) {
+    for (unsigned int k=0; k<bidomain_order.size(); k++) {
+        int i = bidomain_order[k];
         const Bidomain &bd = domains[i];
-        if (bd.right_len > 15 && domains.size() != 1)
-            continue;
-        auto score = bidomain_score(bd, left, right,
-                g0_2p, g1_2p,
-                g0_deg, g1_deg,
-                current, best_score);
+        if (bd.right_len > 10 && best_score.first != INT_MAX)
+            break;
+        auto score = bidomain_score(bd, left, right, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
         if (score < best_score) {
             if (score.first == 0)
                 return std::make_pair(-1, -1);
             best_score = score;
             best = i;
-        }
-    }
-    if (best == -1) {
-        for (unsigned int i=0; i<domains.size(); i++) {
-            const Bidomain &bd = domains[i];
-            if (bd.right_len <= 15 || domains.size() <= 1)
-                continue;
-            int len = arguments.heuristic == min_max ?
-                    std::max(bd.left_len, bd.right_len) :
-                    bd.left_len * bd.right_len;
-            int tie_breaker = find_min_value(left, bd.l, bd.left_len);
-            auto score = std::make_pair(len, tie_breaker);
-            if (score < best_score) {
-                if (score.first == 0)
-                    return std::make_pair(-1, -1);
-                best_score = score;
-                best = i;
-            }
         }
     }
     return std::make_pair(best, best_score.second);
