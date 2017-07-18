@@ -313,17 +313,21 @@ bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& 
     return false;
 }
 
-int min_num_poss_assignments(
+// Returns a pair, whose first value is the min domain size, and whose second value is a tie-breaker
+// giving the lowest vertex index of a vertex whose domain size is minimal
+std::pair<int, int> bidomain_score(
         const Bidomain &bd,
         const vector<int>& left,
         const vector<int>& right,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
-        const vector<VtxPair>& current)
+        const vector<VtxPair>& current,
+        std::pair<int, int> incumbent)
 {
-    int best_v = INT_MAX;
-    int lowest_num_possible_assignments = INT_MAX;
+    auto best = incumbent;
+//    int best_v = INT_MAX;
+//    int lowest_num_possible_assignments = INT_MAX;
     for (int i=0; i<bd.left_len; i++) {
         int v = left[bd.l + i];
         int num_possible_assignments = 0;
@@ -331,20 +335,19 @@ int min_num_poss_assignments(
             int w = right[bd.r + j];
             if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_2p, g1_2p)) {
                 num_possible_assignments++;
+                if (num_possible_assignments > best.first)
+                    break;
             }
         }
-//        if (num_possible_assignments == 1)
-//            return v;
-        if (num_possible_assignments < lowest_num_possible_assignments ||
-                (num_possible_assignments == lowest_num_possible_assignments && v < best_v)) {
-            lowest_num_possible_assignments = num_possible_assignments;
-            best_v = v;
+        auto vtx_score = std::make_pair(num_possible_assignments, v);
+        if (vtx_score < best) {
+            best = vtx_score;
         }
     }
-    return lowest_num_possible_assignments;
+    return best;
 }
 
-int select_bidomain(const vector<Bidomain>& domains,
+std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& domains,
         const vector<int> & left,
         const vector<int> & right,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
@@ -354,30 +357,21 @@ int select_bidomain(const vector<Bidomain>& domains,
 {
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
-    int min_size = INT_MAX;
-    int min_tie_breaker = INT_MAX;
+    auto best_score = std::make_pair(INT_MAX, INT_MAX);
     int best = -1;
     for (unsigned int i=0; i<domains.size(); i++) {
         const Bidomain &bd = domains[i];
         if (bd.right_len > 15 && domains.size() != 1)
             continue;
-//        int len = arguments.heuristic == min_max ?
-//                std::max(bd.left_len, bd.right_len) :
-//                bd.left_len * bd.right_len;
-        int len = min_num_poss_assignments(bd, left, right,
+        auto score = bidomain_score(bd, left, right,
                 g0_2p, g1_2p,
                 g0_deg, g1_deg,
-                current);
-        if (len < min_size) {
-            min_size = len;
-            min_tie_breaker = find_min_value(left, bd.l, bd.left_len);
+                current, best_score);
+        if (score < best_score) {
+            if (score.first == 0)
+                return std::make_pair(-1, -1);
+            best_score = score;
             best = i;
-        } else if (len == min_size) {
-            int tie_breaker = find_min_value(left, bd.l, bd.left_len);
-            if (tie_breaker < min_tie_breaker) {
-                min_tie_breaker = tie_breaker;
-                best = i;
-            }
         }
     }
     if (best == -1) {
@@ -388,20 +382,17 @@ int select_bidomain(const vector<Bidomain>& domains,
             int len = arguments.heuristic == min_max ?
                     std::max(bd.left_len, bd.right_len) :
                     bd.left_len * bd.right_len;
-            if (len < min_size) {
-                min_size = len;
-                min_tie_breaker = find_min_value(left, bd.l, bd.left_len);
+            int tie_breaker = find_min_value(left, bd.l, bd.left_len);
+            auto score = std::make_pair(len, tie_breaker);
+            if (score < best_score) {
+                if (score.first == 0)
+                    return std::make_pair(-1, -1);
+                best_score = score;
                 best = i;
-            } else if (len == min_size) {
-                int tie_breaker = find_min_value(left, bd.l, bd.left_len);
-                if (tie_breaker < min_tie_breaker) {
-                    min_tie_breaker = tie_breaker;
-                    best = i;
-                }
             }
         }
     }
-    return best;
+    return std::make_pair(best, best_score.second);
 }
 
 // Returns length of left half of array
@@ -562,17 +553,14 @@ void solve(const Graph & g0, const Graph & g1,
     if (bound < g0.n)
         return;
 
-    int bd_idx = select_bidomain(domains, left, right,
-            g0_2p, g1_2p, g0_deg, g1_deg, current);
+    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left, right, g0_2p, g1_2p, g0_deg, g1_deg, current);
+    int bd_idx = bd_idx_and_v.first;
+    int v = bd_idx_and_v.second;
+
     if (bd_idx == -1)   // Return if there's nothing left to branch on
         return;
     Bidomain &bd = domains[bd_idx];
 
-    int v = choose_v(left, bd.l, bd.left_len, right, bd.r, bd.right_len,
-            g0_2p, g1_2p, g0_deg, g1_deg, current);
-    if (v==-1)
-        return;
-//    int v = find_min_value(left, bd.l, bd.left_len);
     remove_vtx_from_left_domain(left, domains[bd_idx], v);
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
