@@ -314,8 +314,9 @@ bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& 
 }
 
 int min_num_poss_assignments(
-        const vector<int>& left, int left_start, int left_len,
-        const vector<int>& right, int right_start, int right_len,
+        const Bidomain &bd,
+        const vector<int>& left,
+        const vector<int>& right,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -323,11 +324,11 @@ int min_num_poss_assignments(
 {
     int best_v = INT_MAX;
     int lowest_num_possible_assignments = INT_MAX;
-    for (int i=0; i<left_len; i++) {
-        int v = left[left_start + i];
+    for (int i=0; i<bd.left_len; i++) {
+        int v = left[bd.l + i];
         int num_possible_assignments = 0;
-        for (int j=0; j<right_len; j++) {
-            int w = right[right_start + j];
+        for (int j=0; j<bd.right_len; j++) {
+            int w = right[bd.r + j];
             if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_2p, g1_2p)) {
                 num_possible_assignments++;
             }
@@ -363,8 +364,7 @@ int select_bidomain(const vector<Bidomain>& domains,
 //        int len = arguments.heuristic == min_max ?
 //                std::max(bd.left_len, bd.right_len) :
 //                bd.left_len * bd.right_len;
-        int len = min_num_poss_assignments(left, bd.l, bd.left_len,
-                right, bd.r, bd.right_len,
+        int len = min_num_poss_assignments(bd, left, right,
                 g0_2p, g1_2p,
                 g0_deg, g1_deg,
                 current);
