@@ -301,7 +301,7 @@ int find_min_value(const vector<int>& arr, int start_idx, int len) {
     return min_v;
 }
 
-bool assignment_impossible_by_path_lengths(int v, int w, const vector<VtxPair>& current,
+bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& current,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p
         )
 {
@@ -333,7 +333,7 @@ std::pair<int, int> bidomain_score(
         int num_possible_assignments = 0;
         for (int j=0; j<bd.right_len; j++) {
             int w = right[bd.r + j];
-            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_2p, g1_2p)) {
+            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
                 num_possible_assignments++;
                 if (num_possible_assignments > best.first)
                     break;
@@ -531,7 +531,7 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + idx] = right[bd.r + bd.right_len];
         right[bd.r + bd.right_len] = w;
 
-        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_path_lengths(v, w, current, g0_2p, g1_2p)) {
+        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
             auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
                     arguments.directed || arguments.edge_labelled);
             current.push_back(VtxPair(v, w));
