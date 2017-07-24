@@ -1,6 +1,8 @@
 CXX := g++
-CXXFLAGS := -O3 -march=native
-all: mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy non_ind_mcsp_2paths
+CXXFLAGS := -O3 -g -ggdb -march=native
+PROGRAMS := mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy non_ind_mcsp_2paths
+
+all: $(PROGRAMS)
 
 mcsp: mcsp.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp graph.c mcsp.c -pthread
@@ -27,4 +29,4 @@ non_ind_mcsp_2paths: non_ind_mcsp_2paths.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_mcsp_2paths graph.c non_ind_mcsp_2paths.c -pthread
 
 clean:
-	rm mcsp mcsp_tighter_bounding
+	rm $(PROGRAMS)

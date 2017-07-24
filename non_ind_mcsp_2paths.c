@@ -165,40 +165,17 @@ struct VtxPair {
 };
 
 struct Bidomain {
-    int l,        r;        // start indices of left and right sets
-    int left_len, right_len;
+    int l;        // start index of left set
+    int left_len;
+    vector<int> right_set;
     bool is_adjacent;
-    Bidomain(int l, int r, int left_len, int right_len, bool is_adjacent):
+    int right_len() const { return right_set.size(); };
+    Bidomain(int l, int left_len, vector<int> right_set, bool is_adjacent):
             l(l),
-            r(r),
-            left_len (left_len),
-            right_len (right_len),
-            is_adjacent (is_adjacent) { };
+            left_len(left_len),
+            right_set(right_set),
+            is_adjacent(is_adjacent) { };
 };
-
-void show(const vector<VtxPair>& current, const vector<Bidomain> &domains,
-        const vector<int>& left, const vector<int>& right)
-{
-    cout << "Nodes: " << nodes << std::endl;
-    cout << "Length of current assignment: " << current.size() << std::endl;
-    cout << "Current assignment:";
-    for (unsigned int i=0; i<current.size(); i++) {
-        cout << "  (" << current[i].v << " -> " << current[i].w << ")";
-    }
-    cout << std::endl;
-    for (unsigned int i=0; i<domains.size(); i++) {
-        struct Bidomain bd = domains[i];
-        cout << "Left  ";
-        for (int j=0; j<bd.left_len; j++)
-            cout << left[bd.l + j] << " ";
-        cout << std::endl;
-        cout << "Right  ";
-        for (int j=0; j<bd.right_len; j++)
-            cout << right[bd.r + j] << " ";
-        cout << std::endl;
-    }
-    cout << "\n" << std::endl;
-}
 
 bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solution) {
     return true;
@@ -222,11 +199,11 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
 }
 
 int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int target)
+        const Graph & g0, const Graph & g1, int target)
 {
     int bound = 0;
     for (const Bidomain &bd : domains) {
-        bound += std::min(bd.left_len, bd.right_len);
+        bound += std::min(bd.left_len, bd.right_len());
     }
     return bound;
 }
@@ -244,7 +221,8 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
         )
 {
     for (auto pair : current) {
-        if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
+        //if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
+        if (g0_2p.at(v).at(pair.v) < g1_2p.at(w).at(pair.w)) {
             return true;
         }
     }
@@ -256,7 +234,6 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
 std::pair<int, int> bidomain_score(
         const Bidomain &bd,
         const vector<int>& left,
-        const vector<int>& right,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -269,8 +246,8 @@ std::pair<int, int> bidomain_score(
     for (int i=0; i<bd.left_len; i++) {
         int v = left[bd.l + i];
         int num_possible_assignments = 0;
-        for (int j=0; j<bd.right_len; j++) {
-            int w = right[bd.r + j];
+        for (int w : bd.right_set) {
+//            std::cout << w << std::endl;
             if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
                 num_possible_assignments++;
                 if (num_possible_assignments > best.first)
@@ -287,7 +264,6 @@ std::pair<int, int> bidomain_score(
 
 std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& domains,
         const vector<int> & left,
-        const vector<int> & right,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
@@ -296,7 +272,7 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     vector<int> bidomain_order(domains.size());
     std::iota(std::begin(bidomain_order), std::end(bidomain_order), 0);
     std::sort(bidomain_order.begin(), bidomain_order.end(),
-            [&domains](const int a, const int b) { return domains[a].right_len < domains[b].right_len; });
+            [&domains](const int a, const int b) { return domains[a].right_len() < domains[b].right_len(); });
 
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
@@ -305,9 +281,9 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     for (unsigned int k=0; k<bidomain_order.size(); k++) {
         int i = bidomain_order[k];
         const Bidomain &bd = domains[i];
-        if (best_score.first != INT_MAX && bd.right_len > best_score.first * 3)  // TODO: check if there's something better than 3
+        if (best_score.first != INT_MAX && bd.right_len() > best_score.first * 3)  // TODO: check if there's something better than 3
             break;
-        auto score = bidomain_score(bd, left, right, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
+        auto score = bidomain_score(bd, left, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
         if (score < best_score) {
             if (score.first == 0)
                 return std::make_pair(-1, -1);
@@ -334,30 +310,42 @@ int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int
 
 // multiway is for directed and/or labelled graphs
 vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
-        bool multiway)
+        const Graph & g0, const Graph & g1, int v, int w)
 {
     vector<Bidomain> new_d;
     new_d.reserve(d.size());
     for (const Bidomain &old_bd : d) {
         int l = old_bd.l;
-        int r = old_bd.r;
-        // After these two partitions, left_len and right_len are the lengths of the
-        // arrays of vertices with edges from v or w (int the directed case, edges
-        // either from or to v or w)
+        // After this partition, left_len is the length of the
+        // array of vertices with edges from v
         int left_len = partition(left, l, old_bd.left_len, g0.adjmat[v]);
-        int right_len = partition(right, r, old_bd.right_len, g1.adjmat[w]);
+
+//        for (int u : old_bd.right_set)
+//            if (u > 1295)
+//                std::cout << u << std::endl;
+        //
+        // right_with_edge is the set of vertices (not including w) with edges to w
+        vector<int> right_with_edge;
+        for (int u : old_bd.right_set)
+            if (g1.adjmat[w][u])
+                right_with_edge.push_back(u);
+
+        // right_without_w is the right set with w removed
+        vector<int> right_without_w;
+        for (int u : old_bd.right_set)
+            if (u != w)
+                right_without_w.push_back(u);
+
         int left_len_noedge = old_bd.left_len - left_len;
-        int right_len_noedge = old_bd.right_len - right_len;
-        if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
+        if ((left_len_noedge > (int)right_without_w.size()) || (left_len > (int)right_with_edge.size())) {
             // Stop early if we know that there are vertices in the first graph that can't be matched
             // TODO: improve this for the edge-labelled case
             return new_d;
         }
-        if (left_len_noedge && right_len_noedge)
-            new_d.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
-        if (left_len && right_len)
-            new_d.push_back({l, r, left_len, right_len, true});
+        if (left_len_noedge && right_without_w.size())
+            new_d.push_back({l+left_len, left_len_noedge, right_without_w, old_bd.is_adjacent});
+        if (left_len && right_with_edge.size())
+            new_d.push_back({l, left_len, right_with_edge, true});
     }
     return new_d;
 }
@@ -395,7 +383,7 @@ void solve(const Graph & g0, const Graph & g1,
         const vector<int>& g0_deg, const vector<int>& g1_deg,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
-        vector<int> & left, vector<int> & right, long long & solution_count)
+        vector<int> & left, long long & solution_count)
 {
     if (abort_due_to_timeout)
         return;
@@ -417,11 +405,11 @@ void solve(const Graph & g0, const Graph & g1,
         return;
 
     int bound = current.size() + calc_bound(
-            domains, left, right, g0, g1, g0.n - current.size());
+            domains, left, g0, g1, g0.n - current.size());
     if (bound < g0.n)
         return;
 
-    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left, right, g0_2p, g1_2p, g0_deg, g1_deg, current);
+    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left, g0_2p, g1_2p, g0_deg, g1_deg, current);
     int bd_idx = bd_idx_and_v.first;
     int v = bd_idx_and_v.second;
 
@@ -432,21 +420,22 @@ void solve(const Graph & g0, const Graph & g1,
     remove_vtx_from_left_domain(left, domains[bd_idx], v);
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
-    int w = -1;
-    bd.right_len--;
-    for (int i=0; i<=bd.right_len; i++) {
-        int idx = index_of_next_smallest(right, bd.r, bd.right_len+1, w);
-        w = right[bd.r + idx];
+    //int w = -1;
+    //bd.right_len--;
+    for (int i=0; i<bd.right_len(); i++) {
+        //int idx = index_of_next_smallest(right, bd.r, bd.right_len()+1, w);
+        //w = right[bd.r + idx];
+        int w = bd.right_set[i];
 
-        // swap w to the end of its colour class
-        right[bd.r + idx] = right[bd.r + bd.right_len];
-        right[bd.r + bd.right_len] = w;
+        //// swap w to the end of its colour class
+        //right[bd.r + idx] = right[bd.r + bd.right_len()];
+        //right[bd.r + bd.right_len()] = w;
 
+        //std::cout << "- " << w << std::endl;
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-            auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
-                    arguments.directed || arguments.edge_labelled);
+            auto new_domains = filter_domains(domains, left, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
-            solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
+            solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, solution_count);
             current.pop_back();
         }
     }
@@ -519,7 +508,13 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 
         int left_len = left.size() - start_l;
         int right_len = right.size() - start_r;
-        domains.push_back({start_l, start_r, left_len, right_len, false});
+
+        vector<int> right_set;
+        for (int i=start_r; i<start_r+right_len; i++) {
+//            std::cout << right[i] << std::endl;
+            right_set.push_back(right[i]);
+        }
+        domains.push_back({start_l, left_len, right_set, false});
     }
 
     vector<int> g0_deg = calculate_degrees(g0);
@@ -528,7 +523,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, domains, left, right, solution_count);
+    solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, domains, left, solution_count);
 
     return {incumbent, solution_count};
 }
