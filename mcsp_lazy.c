@@ -23,7 +23,7 @@ using std::vector;
 using std::cout;
 using std::endl;
 
-#define MAGIC_MAX_UNIDOMAIN_SZ 20
+#define MAGIC_MAX_UNIDOMAIN_SZ 10
 
 static void fail(std::string msg) {
     std::cerr << msg << std::endl;
@@ -354,6 +354,7 @@ void make_bidomain(DomainList& new_d, vector<int> & left,
         const vector<VtxPair>& current, const Bidomain& old_bd)
 {
     new_d.bidomains.push_back({l, r, left_len, right_len, is_adjacent});
+    //std::cout << right_len << std::endl;
     if (right_len <= MAGIC_MAX_UNIDOMAIN_SZ) {
         if (old_bd.unidomains.size() == 0) {
             for (int i=0; i<left_len; i++) {
