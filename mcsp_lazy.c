@@ -347,6 +347,43 @@ bool is_in_left_set(int v, vector<int> left, int start, int len) {
     return false;
 }
 
+void make_bidomain(DomainList& new_d, vector<int> & left,
+        vector<int> & right, int v, int w,
+        const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
+        int l, int r, int left_len, int right_len, int is_adjacent,
+        const vector<VtxPair>& current, const Bidomain& old_bd)
+{
+    new_d.bidomains.push_back({l, r, left_len, right_len, is_adjacent});
+    if (right_len <= MAGIC_MAX_UNIDOMAIN_SZ) {
+        if (old_bd.unidomains.size() == 0) {
+            for (int i=0; i<left_len; i++) {
+                int v = left[l + i];
+                vector<int> ww;
+                for (int j=0; j<right_len; j++) {
+                    int w = right[r + j];
+                    if (!assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
+                        ww.push_back(w);
+                    }
+                }
+                new_d.bidomains.back().unidomains.push_back({v, ww});
+            }
+        } else {
+            for (auto& ud : old_bd.unidomains) {
+                if (is_in_left_set(ud.v, left, l, left_len)) {
+                    vector<int> ww;
+                    for (int u : ud.ww) {
+                        if (g0_2p[ud.v][v] >= g1_2p[u][w]) {
+                            ww.push_back(u);
+                        }
+                    }
+                    new_d.bidomains.back().unidomains.push_back({ud.v, ww});
+
+                }
+            }
+        }
+    }
+}
+
 DomainList filter_domains(const DomainList& d, vector<int> & left,
         vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
@@ -369,58 +406,12 @@ DomainList filter_domains(const DomainList& d, vector<int> & left,
             return new_d;
         }
         if (left_len_noedge && right_len_noedge) {
-            new_d.bidomains.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
-            if (right_len_noedge <= MAGIC_MAX_UNIDOMAIN_SZ) {
-                if (old_bd.unidomains.size() == 0) {
-                    for (int i=0; i<left_len_noedge; i++) {
-                        int v = left[l + left_len + i];
-                        vector<int> ww;
-                        for (int j=0; j<right_len_noedge; j++) {
-                            int w = right[r + right_len + j];
-                            if (!assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-                                ww.push_back(w);
-                            }
-                        }
-                        new_d.bidomains.back().unidomains.push_back({v, ww});
-                    }
-                } else {
-                    for (auto& ud : old_bd.unidomains) {
-                        if (is_in_left_set(ud.v, left, l+left_len, left_len_noedge)) {
-                            vector<int> ww;
-                            for (int u : ud.ww) {
-                                if (g0_2p[ud.v][v] >= g1_2p[u][w]) {
-                                    ww.push_back(u);
-                                }
-                            }
-                            new_d.bidomains.back().unidomains.push_back({ud.v, ww});
-
-                        }
-                    }
-                }
-            }
+            make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, l+left_len, r+right_len,
+                    left_len_noedge, right_len_noedge, old_bd.is_adjacent, current, old_bd);
         }
         if (left_len && right_len) {
-            new_d.bidomains.push_back({l, r, left_len, right_len, true});
-            if (right_len_noedge <= MAGIC_MAX_UNIDOMAIN_SZ) {
-                if (old_bd.unidomains.size() == 0) {
-                    for (int i=0; i<left_len; i++) {
-                        int v = left[l + i];
-                        vector<int> ww;
-                        for (int j=0; j<right_len; j++) {
-                            int w = right[r + j];
-                            if (!assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-                                ww.push_back(w);
-                            }
-                        }
-                        new_d.bidomains.back().unidomains.push_back({v, ww});
-                    }
-                } else {
-                    for (auto& ud : old_bd.unidomains) {
-                        if (is_in_left_set(ud.v, left, l, left_len)) {
-                        }
-                    }
-                }
-            }
+            make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, l, r,
+                    left_len, right_len, true, current, old_bd);
         }
     }
     return new_d;
