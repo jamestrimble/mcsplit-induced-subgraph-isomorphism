@@ -23,7 +23,7 @@ using std::vector;
 using std::cout;
 using std::endl;
 
-#define MAGIC_MAX_UNIDOMAIN_SZ 10
+#define MAGIC_MAX_UNIDOMAIN_SZ 5
 
 static void fail(std::string msg) {
     std::cerr << msg << std::endl;
@@ -347,9 +347,10 @@ bool is_in_left_set(int v, vector<int> left, int start, int len) {
     return false;
 }
 
-void make_bidomain(DomainList& new_d, vector<int> & left,
+bool make_bidomain(DomainList& new_d, vector<int> & left,
         vector<int> & right, int v, int w,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
+        const vector<int> & g0_deg, const vector<int> & g1_deg,
         int l, int r, int left_len, int right_len, int is_adjacent,
         const vector<VtxPair>& current, const Bidomain& old_bd)
 {
@@ -362,7 +363,7 @@ void make_bidomain(DomainList& new_d, vector<int> & left,
                 vector<int> ww;
                 for (int j=0; j<right_len; j++) {
                     int w = right[r + j];
-                    if (!assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
+                    if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
                         ww.push_back(w);
                     }
                 }
@@ -373,7 +374,7 @@ void make_bidomain(DomainList& new_d, vector<int> & left,
                 if (is_in_left_set(ud.v, left, l, left_len)) {
                     vector<int> ww;
                     for (int u : ud.ww) {
-                        if (g0_2p[ud.v][v] >= g1_2p[u][w]) {
+                        if (g0_deg[ud.v] <= g1_deg[u] && g0_2p[ud.v][v] >= g1_2p[u][w]) {
                             ww.push_back(u);
                         }
                     }
@@ -400,15 +401,36 @@ void make_bidomain(DomainList& new_d, vector<int> & left,
                     auto& ud = new_d.bidomains.back().unidomains[ud_idx[w]];
                     ud.ww.clear();
                     ud.ww.push_back(w);
+                } else if (r_count[w] == 0) {
+                    return false;
                 }
             }
         }
+        {
+            int r_count[10000];
+            for (int i=0; i<right_len; i++) {
+                r_count[right[r + i]] = 0;
+            }
+            int num_unique_right_values = 0;
+            for (int i=0; i<(int)new_d.bidomains.back().unidomains.size(); i++) {
+                auto& ud = new_d.bidomains.back().unidomains[i];
+                for (int w : ud.ww) {
+                    r_count[w]++;
+                    if (r_count[w] == 1)
+                        num_unique_right_values++;
+                }
+            }
+            if (num_unique_right_values < left_len)
+                return false;
+        }
     }
+    return true;
 }
 
 DomainList filter_domains(const DomainList& d, vector<int> & left,
         vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
+        const vector<int> & g0_deg, const vector<int> & g1_deg,
         const vector<VtxPair>& current)
 {
     DomainList new_d;
@@ -428,12 +450,12 @@ DomainList filter_domains(const DomainList& d, vector<int> & left,
             return new_d;
         }
         if (left_len_noedge && right_len_noedge) {
-            make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, l+left_len, r+right_len,
-                    left_len_noedge, right_len_noedge, old_bd.is_adjacent, current, old_bd);
+            if (!make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, g0_deg, g1_deg, l+left_len, r+right_len,
+                    left_len_noedge, right_len_noedge, old_bd.is_adjacent, current, old_bd)) return new_d;
         }
         if (left_len && right_len) {
-            make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, l, r,
-                    left_len, right_len, true, current, old_bd);
+            if (!make_bidomain(new_d, left, right, v, w, g0_2p, g1_2p, g0_deg, g1_deg, l, r,
+                    left_len, right_len, true, current, old_bd)) return new_d;
         }
     }
     return new_d;
@@ -514,9 +536,9 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + idx] = right[bd.r + bd.right_len];
         right[bd.r + bd.right_len] = w;
 
-        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
+        if (g0_deg[v] <= g1_deg[w] /*&& !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)*/) {
             current.push_back(VtxPair(v, w));
-            auto new_domains = filter_domains(domains, left, right, g0, g1, v, w, g0_2p, g1_2p, current);
+            auto new_domains = filter_domains(domains, left, right, g0, g1, v, w, g0_2p, g1_2p, g0_deg, g1_deg, current);
             solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
             current.pop_back();
         }
