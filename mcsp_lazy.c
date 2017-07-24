@@ -380,26 +380,26 @@ void make_bidomain(DomainList& new_d, vector<int> & left,
                 }
             }
         }
-    }
-    if (left_len == right_len && right_len > 1) {
-        int r_count[10000];
-        int ud_idx[10000];
-        for (int i=0; i<right_len; i++) {
-            r_count[right[r + i]] = 0;
-        }
-        for (int i=0; i<(int)new_d.bidomains.back().unidomains.size(); i++) {
-            auto& ud = new_d.bidomains.back().unidomains[i];
-            for (int w : ud.ww) {
-                r_count[w]++;
-                ud_idx[w] = i;
+        if (left_len == right_len && right_len > 1) {
+            int r_count[10000];
+            int ud_idx[10000];
+            for (int i=0; i<right_len; i++) {
+                r_count[right[r + i]] = 0;
             }
-        }
-        for (int i=0; i<right_len; i++) {
-            int w = right[r + i];
-            if (r_count[w] == 1) {
-                auto& ud = new_d.bidomains.back().unidomains[ud_idx[w]];
-                ud.ww.clear();
-                ud.ww.push_back(w);
+            for (int i=0; i<(int)new_d.bidomains.back().unidomains.size(); i++) {
+                auto& ud = new_d.bidomains.back().unidomains[i];
+                for (int w : ud.ww) {
+                    r_count[w]++;
+                    ud_idx[w] = i;
+                }
+            }
+            for (int i=0; i<right_len; i++) {
+                int w = right[r + i];
+                if (r_count[w] == 1) {
+                    auto& ud = new_d.bidomains.back().unidomains[ud_idx[w]];
+                    ud.ww.clear();
+                    ud.ww.push_back(w);
+                }
             }
         }
     }
