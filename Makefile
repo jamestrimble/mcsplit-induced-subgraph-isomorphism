@@ -23,5 +23,8 @@ mcsp_2paths_tighter_bounding: mcsp_2paths.c graph.c graph.h
 mcsp_lazy: mcsp_lazy.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_lazy graph.c mcsp_lazy.c -pthread
 
+non_ind_mcsp_2paths: non_ind_mcsp_2paths.c graph.c graph.h
+	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_mcsp_2paths graph.c non_ind_mcsp_2paths.c -pthread
+
 clean:
 	rm mcsp mcsp_tighter_bounding
