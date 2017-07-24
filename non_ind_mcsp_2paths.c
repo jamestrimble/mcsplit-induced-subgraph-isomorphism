@@ -28,14 +28,12 @@ static void fail(std::string msg) {
     exit(1);
 }
 
-enum Heuristic { min_max, min_product };
-
 /*******************************************************************************
                              Command-line arguments
 *******************************************************************************/
 
-static char doc[] = "Find a maximum clique in a graph in DIMACS format\vHEURISTIC can be min_max or min_product";
-static char args_doc[] = "HEURISTIC FILENAME1 FILENAME2";
+static char doc[] = "Find a maximum clique in a graph in DIMACS format";
+static char args_doc[] = "FILENAME1 FILENAME2";
 static struct argp_option options[] = {
     {"quiet", 'q', 0, 0, "Quiet output"},
     {"verbose", 'v', 0, 0, "Verbose output"},
@@ -58,7 +56,6 @@ static struct {
     bool enumerate;
     bool edge_labelled;
     bool vertex_labelled;
-    Heuristic heuristic;
     char *filename1;
     char *filename2;
     int timeout;
@@ -122,15 +119,8 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case ARGP_KEY_ARG:
             if (arguments.arg_num == 0) {
-                if (std::string(arg) == "min_max")
-                    arguments.heuristic = min_max;
-                else if (std::string(arg) == "min_product")
-                    arguments.heuristic = min_product;
-                else
-                    fail("Unknown heuristic (try min_max or min_product)");
-            } else if (arguments.arg_num == 1) {
                 arguments.filename1 = arg;
-            } else if (arguments.arg_num == 2) {
+            } else if (arguments.arg_num == 1) {
                 arguments.filename2 = arg;
             } else {
                 argp_usage(state);
