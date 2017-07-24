@@ -19,9 +19,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_SIZE_FOR_STRONGER_BOUND 30
-#define MAX_RATIO_FOR_STRONGER_BOUND 1.5
-
 using std::vector;
 using std::cout;
 using std::endl;
@@ -335,10 +332,8 @@ int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int
     return i;
 }
 
-// multiway is for directed and/or labelled graphs
 vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
-        bool multiway)
+        vector<int> & right, const Graph & g0, const Graph & g1, int v, int w)
 {
     vector<Bidomain> new_d;
     new_d.reserve(d.size());
@@ -354,40 +349,12 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         int right_len_noedge = old_bd.right_len - right_len;
         if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
             // Stop early if we know that there are vertices in the first graph that can't be matched
-            // TODO: improve this for the edge-labelled case
             return new_d;
         }
         if (left_len_noedge && right_len_noedge)
             new_d.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
-        if (multiway && left_len && right_len) {
-            auto& adjrow_v = g0.adjmat[v];
-            auto& adjrow_w = g1.adjmat[w];
-            auto l_begin = std::begin(left) + l;
-            auto r_begin = std::begin(right) + r;
-            std::sort(l_begin, l_begin+left_len, [&](int a, int b)
-                    { return adjrow_v[a] < adjrow_v[b]; });
-            std::sort(r_begin, r_begin+right_len, [&](int a, int b)
-                    { return adjrow_w[a] < adjrow_w[b]; });
-            int l_top = l + left_len;
-            int r_top = r + right_len;
-            while (l<l_top && r<r_top) {
-                unsigned int left_label = adjrow_v[left[l]];
-                unsigned int right_label = adjrow_w[right[r]];
-                if (left_label < right_label) {
-                    l++;
-                } else if (left_label > right_label) {
-                    r++;
-                } else {
-                    int lmin = l;
-                    int rmin = r;
-                    do { l++; } while (l<l_top && adjrow_v[left[l]]==left_label);
-                    do { r++; } while (r<r_top && adjrow_w[right[r]]==left_label);
-                    new_d.push_back({lmin, rmin, l-lmin, r-rmin, true});
-                }
-            }
-        } else if (left_len && right_len) {
+        if (left_len && right_len)
             new_d.push_back({l, r, left_len, right_len, true});
-        }
     }
     return new_d;
 }
@@ -473,8 +440,7 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + bd.right_len] = w;
 
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-            auto new_domains = filter_domains(domains, left, right, g0, g1, v, w,
-                    arguments.directed || arguments.edge_labelled);
+            auto new_domains = filter_domains(domains, left, right, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
             solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
             current.pop_back();
