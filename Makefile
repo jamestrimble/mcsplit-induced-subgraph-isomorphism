@@ -1,6 +1,6 @@
 CXX := g++
 CXXFLAGS := -O3 -march=native
-all: mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy
+all: mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy non_ind_mcsp_2paths
 
 mcsp: mcsp.c graph.c graph.h
 	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp graph.c mcsp.c -pthread
