@@ -23,7 +23,7 @@ using std::vector;
 using std::cout;
 using std::endl;
 
-#define MAGIC_MAX_UNIDOMAIN_SZ 5
+#define MAGIC_MAX_UNIDOMAIN_SZ 10
 
 static void fail(std::string msg) {
     std::cerr << msg << std::endl;
@@ -536,7 +536,7 @@ void solve(const Graph & g0, const Graph & g1,
         right[bd.r + idx] = right[bd.r + bd.right_len];
         right[bd.r + bd.right_len] = w;
 
-        if (g0_deg[v] <= g1_deg[w] /*&& !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)*/) {
+        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
             current.push_back(VtxPair(v, w));
             auto new_domains = filter_domains(domains, left, right, g0, g1, v, w, g0_2p, g1_2p, g0_deg, g1_deg, current);
             solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, right, solution_count);
