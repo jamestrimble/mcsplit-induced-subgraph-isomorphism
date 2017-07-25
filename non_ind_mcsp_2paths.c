@@ -333,9 +333,9 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
             return new_d;
         }
         if (left_len_noedge && right_without_w.size())
-            new_d.push_back({l+left_len, left_len_noedge, right_without_w, old_bd.is_adjacent});
+            new_d.push_back({l+left_len, left_len_noedge, std::move(right_without_w), old_bd.is_adjacent});
         if (left_len && right_with_edge.size())
-            new_d.push_back({l, left_len, right_with_edge, true});
+            new_d.push_back({l, left_len, std::move(right_with_edge), true});
     }
     return new_d;
 }
