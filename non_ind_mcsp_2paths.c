@@ -430,13 +430,9 @@ vector<vector<int>> count_2paths(const Graph & g)
 
 vector<int> calculate_degrees(const Graph & g) {
     vector<int> degree(g.n, 0);
-    for (int v=0; v<g.n; v++) {
-        for (int w=0; w<g.n; w++) {
-            unsigned int mask = 0xFFFFu;
-            if (g.adjmat[v][w] & mask) degree[v]++;
-            if (g.adjmat[v][w] & ~mask) degree[v]++;  // inward edge, in directed case
-        }
-    }
+    for (int v=0; v<g.n; v++)
+        for (int w=0; w<g.n; w++)
+            if (g.adjmat[v][w]) degree[v]++;
     return degree;
 }
 
