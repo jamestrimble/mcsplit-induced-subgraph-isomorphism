@@ -188,8 +188,7 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
     return true;
 }
 
-int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
-        const Graph & g0, const Graph & g1, int target)
+int calc_bound(const vector<Bidomain>& domains)
 {
     int bound = 0;
     for (const Bidomain &bd : domains) {
@@ -394,9 +393,7 @@ void solve(const Graph & g0, const Graph & g1,
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    int bound = current.size() + calc_bound(
-            domains, left, g0, g1, g0.n - current.size());
-    if (bound < g0.n)
+    if ((int)current.size() + calc_bound(domains) < g0.n)
         return;
 
     auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left, g0_2p, g1_2p, g0_deg, g1_deg, current);
