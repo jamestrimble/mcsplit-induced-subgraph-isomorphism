@@ -492,7 +492,8 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     //            std::cout << right[i] << std::endl;
                 right_set.push_back(right[i]);
             }
-            domains.push_back({start_l, left_len, right_set, false});
+            if (left_len && right_len)
+                domains.push_back({start_l, left_len, right_set, false});
         }
     }
 
