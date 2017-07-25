@@ -167,6 +167,30 @@ struct Bidomain {
             is_adjacent(is_adjacent) { };
 };
 
+void show(const vector<VtxPair>& current, const vector<Bidomain> &domains,
+        const vector<int>& left)
+{
+    cout << "Nodes: " << nodes << std::endl;
+    cout << "Length of current assignment: " << current.size() << std::endl;
+    cout << "Current assignment:";
+    for (unsigned int i=0; i<current.size(); i++) {
+        cout << "  (" << current[i].v << " -> " << current[i].w << ")";
+    }
+    cout << std::endl;
+    for (unsigned int i=0; i<domains.size(); i++) {
+        struct Bidomain bd = domains[i];
+        cout << "Left  ";
+        for (int j=0; j<bd.left_len; j++)
+            cout << left[bd.l + j] << " ";
+        cout << std::endl;
+        cout << "Right  ";
+        for (int w : bd.right_set)
+            cout << w << " ";
+        cout << std::endl;
+    }
+    cout << "\n" << std::endl;
+}
+
 bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solution) {
     return true;
     vector<bool> used_left(g0.n, false);
@@ -367,7 +391,7 @@ void solve(const Graph & g0, const Graph & g1,
     if (abort_due_to_timeout)
         return;
 
-//    if (arguments.verbose) show(current, domains, left, right);
+    if (arguments.verbose) show(current, domains, left);
     nodes++;
 
     if (current.size() > incumbent.size()) {
