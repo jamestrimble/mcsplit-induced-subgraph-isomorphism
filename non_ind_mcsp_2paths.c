@@ -314,12 +314,14 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         //
         // right_with_edge is the set of vertices (not including w) with edges to w
         vector<int> right_with_edge;
+        right_with_edge.reserve(old_bd.right_set.size());
         for (int u : old_bd.right_set)
             if (g1.adjmat[w][u])
                 right_with_edge.push_back(u);
 
         // right_without_w is the right set with w removed
         vector<int> right_without_w;
+        right_without_w.reserve(old_bd.right_set.size());
         for (int u : old_bd.right_set)
             if (u != w)
                 right_without_w.push_back(u);
