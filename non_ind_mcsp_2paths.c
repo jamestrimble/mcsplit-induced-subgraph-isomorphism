@@ -271,8 +271,6 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     for (unsigned int k=0; k<bidomain_order.size(); k++) {
         int i = bidomain_order[k];
         const Bidomain &bd = domains[i];
-        if (best_score.first != INT_MAX && bd.right_len() > best_score.first * 3)  // TODO: check if there's something better than 3
-            break;
         auto score = bidomain_score(bd, left, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
         if (score < best_score) {
             if (score.first == 0)
