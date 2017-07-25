@@ -515,8 +515,6 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 
     std::vector<bool> g1_vertices_to_keep(g1.n, true);
 
-    bool made_change = false;
-
     vector<int> g0_deg;
     g0_deg = calculate_degrees(g0);
     vector<int> g0_deg_sorted = g0_deg;
@@ -525,7 +523,10 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<vector<int>> g0_nds = make_nds(g0_adjlists, g0_deg);
 
     vector<int> g1_deg;
+
+    bool made_change;
     do {
+        made_change = false;
         g1_deg = calculate_degrees(g1, g1_vertices_to_keep);
         vector<int> g1_deg_sorted = g1_deg;
         std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
