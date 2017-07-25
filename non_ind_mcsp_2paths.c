@@ -235,16 +235,16 @@ std::pair<int, int> bidomain_score(
 //    int lowest_num_possible_assignments = INT_MAX;
     for (int i=0; i<bd.left_len; i++) {
         int v = left[bd.l + i];
-        int num_possible_assignments = 0;
+        //int num_possible_assignments = 0;
+        auto vtx_score = std::make_pair(0, v);
         for (int w : bd.right_set) {
 //            std::cout << w << std::endl;
             if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-                num_possible_assignments++;
-                if (num_possible_assignments > best.first)
+                vtx_score.first++;
+                if (vtx_score > best)
                     break;
             }
         }
-        auto vtx_score = std::make_pair(num_possible_assignments, v);
         if (vtx_score < best) {
             best = vtx_score;
         }
