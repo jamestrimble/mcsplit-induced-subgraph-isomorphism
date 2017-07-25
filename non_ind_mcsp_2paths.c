@@ -307,10 +307,6 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         // array of vertices with edges from v
         int left_len = partition(left, l, old_bd.left_len, g0.adjmat[v]);
 
-//        for (int u : old_bd.right_set)
-//            if (u > 1295)
-//                std::cout << u << std::endl;
-        //
         // right_with_edge is the set of vertices (not including w) with edges to w
         vector<int> right_with_edge;
         right_with_edge.reserve(old_bd.right_set.size());
@@ -328,7 +324,6 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         int left_len_noedge = old_bd.left_len - left_len;
         if ((left_len_noedge > (int)right_without_w.size()) || (left_len > (int)right_with_edge.size())) {
             // Stop early if we know that there are vertices in the first graph that can't be matched
-            // TODO: improve this for the edge-labelled case
             return new_d;
         }
         if (left_len_noedge && right_without_w.size())
@@ -361,11 +356,6 @@ void remove_vtx_from_left_domain(vector<int>& left, Bidomain& bd, int v)
     while(left[bd.l + i] != v) i++;
     std::swap(left[bd.l+i], left[bd.l+bd.left_len-1]);
     bd.left_len--;
-}
-
-void remove_bidomain(vector<Bidomain>& domains, int idx) {
-    domains[idx] = domains[domains.size()-1];
-    domains.pop_back();
 }
 
 void solve(const Graph & g0, const Graph & g1,
@@ -407,18 +397,9 @@ void solve(const Graph & g0, const Graph & g1,
     remove_vtx_from_left_domain(left, domains[bd_idx], v);
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
-    //int w = -1;
-    //bd.right_len--;
     for (int i=0; i<bd.right_len(); i++) {
-        //int idx = index_of_next_smallest(right, bd.r, bd.right_len()+1, w);
-        //w = right[bd.r + idx];
         int w = bd.right_set[i];
 
-        //// swap w to the end of its colour class
-        //right[bd.r + idx] = right[bd.r + bd.right_len()];
-        //right[bd.r + bd.right_len()] = w;
-
-        //std::cout << "- " << w << std::endl;
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
             auto new_domains = filter_domains(domains, left, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
