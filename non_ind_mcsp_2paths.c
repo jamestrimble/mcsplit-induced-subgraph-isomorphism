@@ -221,6 +221,35 @@ int calc_bound(const vector<Bidomain>& domains)
     return bound;
 }
 
+bool can_backtrack_by_alldiff(const vector<Bidomain>& domains, const vector<int>& bidomain_order,
+        const Graph& g0, const Graph& g1, const vector<int>& left)
+{
+    vector<bool> vv0(g0.n);
+    vector<bool> vv1(g1.n);
+    int vv0_count = 0;
+    int vv1_count = 0;
+
+    for (int k=0; k<(int)domains.size()-1; k++) {
+        const Bidomain& bd = domains[bidomain_order[k]];
+        for (int j=bd.l; j<bd.l + bd.left_len; j++) {
+            int v = left[j];
+            if (!vv0[v]) {
+                vv0[v] = true;
+                vv0_count++;
+            }
+        }
+        for (int w : bd.right_set) {
+            if (!vv1[w]) {
+                vv1[w] = true;
+                vv1_count++;
+            }
+        }
+        if (vv0_count > vv1_count)
+            return true;
+    }
+    return false;
+}
+
 int find_min_value(const vector<int>& arr, int start_idx, int len) {
     int min_v = INT_MAX;
     for (int i=0; i<len; i++)
@@ -276,17 +305,13 @@ std::pair<int, int> bidomain_score(
 }
 
 std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& domains,
+        const vector<int>& bidomain_order,
         const vector<int> & left,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
         const vector<int>& g1_deg,
         const vector<VtxPair>& current)
 {
-    vector<int> bidomain_order(domains.size());
-    std::iota(std::begin(bidomain_order), std::end(bidomain_order), 0);
-    std::sort(bidomain_order.begin(), bidomain_order.end(),
-            [&domains](const int a, const int b) { return domains[a].right_len() < domains[b].right_len(); });
-
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
     auto best_score = std::make_pair(INT_MAX, INT_MAX);
@@ -320,12 +345,14 @@ int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int
 }
 
 // multiway is for directed and/or labelled graphs
-vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
+vector<Bidomain> filter_domains(const vector<Bidomain> & d,
+        vector<int>& bidomain_order, vector<int> & left,
         const Graph & g0, const Graph & g1, int v, int w)
 {
     vector<Bidomain> new_d;
     new_d.reserve(d.size());
-    for (const Bidomain &old_bd : d) {
+    for (int i : bidomain_order) {
+        const Bidomain& old_bd = d[i];
         int l = old_bd.l;
         // After this partition, left_len is the length of the
         // array of vertices with edges from v
@@ -410,7 +437,16 @@ void solve(const Graph & g0, const Graph & g1,
     if ((int)current.size() + calc_bound(domains) < g0.n)
         return;
 
-    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left, g0_2p, g1_2p, g0_deg, g1_deg, current);
+    vector<int> bidomain_order(domains.size());
+    std::iota(std::begin(bidomain_order), std::end(bidomain_order), 0);
+    std::sort(bidomain_order.begin(), bidomain_order.end(),
+            [&domains](const int a, const int b) { return domains[a].right_len() < domains[b].right_len(); });
+
+    if (can_backtrack_by_alldiff(domains, bidomain_order, g0, g1, left))
+        return;
+
+    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, bidomain_order, left,
+            g0_2p, g1_2p, g0_deg, g1_deg, current);
     int bd_idx = bd_idx_and_v.first;
     int v = bd_idx_and_v.second;
 
@@ -425,7 +461,7 @@ void solve(const Graph & g0, const Graph & g1,
         int w = bd.right_set[i];
 
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-            auto new_domains = filter_domains(domains, left, g0, g1, v, w);
+            auto new_domains = filter_domains(domains, bidomain_order, left, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
             solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, solution_count);
             current.pop_back();
