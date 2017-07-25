@@ -469,6 +469,9 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<int> left;  // the buffer of vertex indices for the left partitions
     vector<int> right;  // the buffer of vertex indices for the right partitions
 
+    vector<int> g0_deg = calculate_degrees(g0);
+    vector<int> g1_deg = calculate_degrees(g1);
+
     auto domains = vector<Bidomain> {};
 
     std::set<unsigned int> left_labels;
@@ -482,31 +485,30 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
                           std::end(right_labels),
                           std::inserter(labels, std::begin(labels)));
 
-    // Create a bidomain for each label that appears in both graphs
-    for (unsigned int label : labels) {
-        int start_l = left.size();
-        int start_r = right.size();
+    for (int is_isolated=0; is_isolated<=1; is_isolated++) {
+        // Create a bidomain for each label that appears in both graphs
+        for (unsigned int label : labels) {
+            int start_l = left.size();
+            int start_r = right.size();
 
-        for (int i=0; i<g0.n; i++)
-            if (g0.label[i]==label)
-                left.push_back(i);
-        for (int i=0; i<g1.n; i++)
-            if (g1.label[i]==label)
-                right.push_back(i);
+            for (int i=0; i<g0.n; i++)
+                if (g0.label[i]==label && is_isolated==(g0_deg[i]==0))
+                    left.push_back(i);
+            for (int i=0; i<g1.n; i++)
+                if (g1.label[i]==label && (is_isolated || g1_deg[i]>0))
+                    right.push_back(i);
 
-        int left_len = left.size() - start_l;
-        int right_len = right.size() - start_r;
+            int left_len = left.size() - start_l;
+            int right_len = right.size() - start_r;
 
-        vector<int> right_set;
-        for (int i=start_r; i<start_r+right_len; i++) {
-//            std::cout << right[i] << std::endl;
-            right_set.push_back(right[i]);
+            vector<int> right_set;
+            for (int i=start_r; i<start_r+right_len; i++) {
+    //            std::cout << right[i] << std::endl;
+                right_set.push_back(right[i]);
+            }
+            domains.push_back({start_l, left_len, right_set, false});
         }
-        domains.push_back({start_l, left_len, right_set, false});
     }
-
-    vector<int> g0_deg = calculate_degrees(g0);
-    vector<int> g1_deg = calculate_degrees(g1);
 
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
