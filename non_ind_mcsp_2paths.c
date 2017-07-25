@@ -436,71 +436,6 @@ vector<int> calculate_degrees(const Graph & g) {
     return degree;
 }
 
-vector<int> calculate_degrees(const Graph & g, vector<bool>& vertices_to_keep) {
-    vector<int> degree(g.n, 0);
-    for (int v=0; v<g.n; v++) {
-        if (vertices_to_keep[v]) {
-            for (int w=0; w<g.n; w++) {
-                if (vertices_to_keep[w]) {
-                    if (g.adjmat[v][w]) degree[v]++;
-                }
-            }
-        }
-    }
-    return degree;
-}
-
-bool compatible_nds(const vector<int>& nds0, const vector<int>& nds1)
-{
-    if (nds0.size() > nds1.size())
-        return false;
-    for (int i=0; i<(int)nds0.size(); i++)
-        if (nds0[i] > nds1[i]) {
-            return false;
-        }
-    return true;
-}
-
-bool is_in_any_domain(int w, const Graph& g0, const Graph& g1,
-        const vector<int>& g0_deg, const vector<int>& g1_deg,
-        const vector<vector<int>>& g0_nds,
-        vector<int>& w_nds)
-{
-    int w_deg = g1_deg[w];
-    for (int i=0; i<g0.n; i++) {
-        if (g0_deg[i] <= w_deg && compatible_nds(g0_nds[i], w_nds)) {
-            return true;
-        }
-    }
-    return false;
-}
-
-vector<vector<int>> make_adjlists(const Graph& g)
-{
-    vector<vector<int>> adjlists(g.n);
-    for (int i=0; i<g.n; i++) {
-        for (int j=0; j<g.n; j++) {
-            if (g.adjmat[i][j]) {
-                adjlists[i].push_back(j);
-            }
-        }
-    }
-    return adjlists;
-}
-
-vector<vector<int>> make_nds(const vector<vector<int>>& g_adjlists, const vector<int>& g_deg)
-{
-    int n = g_adjlists.size();
-    vector<vector<int>> nds(n);
-    for (int i=0; i<n; i++) {
-        for (int v : g_adjlists[i]) {
-            nds[i].push_back(g_deg[v]);
-        }
-        std::sort(nds[i].begin(), nds[i].end(), std::greater<int>());
-    }
-    return nds;
-}
-
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
 std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 {
@@ -510,56 +445,25 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<int> left;  // the buffer of vertex indices for the left partitions
     vector<int> right;  // the buffer of vertex indices for the right partitions
 
-    vector<vector<int>> g0_adjlists = make_adjlists(g0);
-    vector<vector<int>> g1_adjlists = make_adjlists(g1);
+    vector<int> g0_deg = calculate_degrees(g0);
+    vector<int> g1_deg = calculate_degrees(g1);
 
-    std::vector<bool> g1_vertices_to_keep(g1.n, true);
-
-    bool made_change = false;
-
-    vector<int> g0_deg;
-    g0_deg = calculate_degrees(g0);
     vector<int> g0_deg_sorted = g0_deg;
+    vector<int> g1_deg_sorted = g1_deg;
     std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
-
-    vector<vector<int>> g0_nds = make_nds(g0_adjlists, g0_deg);
-
-    vector<int> g1_deg;
-    do {
-        g1_deg = calculate_degrees(g1, g1_vertices_to_keep);
-        vector<int> g1_deg_sorted = g1_deg;
-        std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
-        for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
-            if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
-                return {{}, 0};
-            }
+    std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
+    for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
+        if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
+            return {{}, 0};
         }
-        for (int w=0; w<g1.n; w++) {
-            std::vector<int> w_nds;
-            for (int u : g1_adjlists[w]) {
-                if (g1_vertices_to_keep[u]) {
-                    w_nds.push_back(g1_deg[u]);
-                }
-            }
-            std::sort(w_nds.begin(), w_nds.end(), std::greater<int>());
-            if (g1_vertices_to_keep[w] && !is_in_any_domain(w, g0, g1, g0_deg, g1_deg, g0_nds, w_nds)) {
-                made_change = true;
-                g1_vertices_to_keep[w] = false;
-            }
-        }
-    } while (made_change);
+    }
 
     auto domains = vector<Bidomain> {};
 
     std::set<unsigned int> left_labels;
     std::set<unsigned int> right_labels;
     for (unsigned int label : g0.label) left_labels.insert(label);
-    for (int i=0; i<g1.n; i++) {
-        if (g1_vertices_to_keep[i]) {
-            unsigned int label = g1.label[i];
-            right_labels.insert(label);
-        }
-    }
+    for (unsigned int label : g1.label) right_labels.insert(label);
     std::set<unsigned int> labels;  // labels that appear in both graphs
     std::set_intersection(std::begin(left_labels),
                           std::end(left_labels),
@@ -577,7 +481,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
                 if (g0.label[i]==label && is_isolated==(g0_deg[i]==0))
                     left.push_back(i);
             for (int i=0; i<g1.n; i++)
-                if (g1_vertices_to_keep[i] && g1.label[i]==label && (is_isolated || g1_deg[i]>0))
+                if (g1.label[i]==label && (is_isolated || g1_deg[i]>0))
                     right.push_back(i);
 
             int left_len = left.size() - start_l;
