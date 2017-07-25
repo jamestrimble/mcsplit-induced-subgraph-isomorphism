@@ -472,6 +472,16 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
 
+    vector<int> g0_deg_sorted = g0_deg;
+    vector<int> g1_deg_sorted = g1_deg;
+    std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
+    std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
+    for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
+        if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
+            return {{}, 0};
+        }
+    }
+
     auto domains = vector<Bidomain> {};
 
     std::set<unsigned int> left_labels;
