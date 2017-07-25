@@ -211,8 +211,8 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
         )
 {
     for (auto pair : current) {
-        //if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
-        if (g0_2p.at(v).at(pair.v) < g1_2p.at(w).at(pair.w)) {
+        if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
+        //if (g0_2p.at(v).at(pair.v) < g1_2p.at(w).at(pair.w)) {
             return true;
         }
     }
