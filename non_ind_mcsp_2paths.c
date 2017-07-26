@@ -363,7 +363,7 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
         )
 {
     for (auto pair : current) {
-        if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
+        if (g0_2p[v][pair.v] > g1_2p[w][pair.w]) {
             return true;
         }
     }
@@ -536,8 +536,8 @@ vector<vector<int>> count_2paths(const Graph & g)
             if (g.adjmat[i][k]) {
                 for (int j=0; j<i; j++) {
                     if (g.adjmat[k][j]) {
-                        num_2paths[i][j]--;
-                        num_2paths[j][i]--;
+                        num_2paths[i][j]++;
+                        num_2paths[j][i]++;
                     }
                 }
             }
