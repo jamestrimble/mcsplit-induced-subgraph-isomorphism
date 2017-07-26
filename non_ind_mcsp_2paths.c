@@ -353,21 +353,23 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         // right_with_edge is the set of vertices (not including w) with edges to w
         vector<int> right_with_edge;
         right_with_edge.reserve(old_bd.right_set.size());
-        for (int u : old_bd.right_set)
-            if (g1.adjmat[w][u])
-                right_with_edge.push_back(u);
-
         // right_without_w is the right set with w removed
         vector<int> right_without_w;
         right_without_w.reserve(old_bd.right_set.size());
-        for (int u : old_bd.right_set)
-            if (u != w)
+
+        for (int u : old_bd.right_set) {
+            if (u != w) {
                 right_without_w.push_back(u);
+                if (g1.adjmat[w][u]) {
+                    right_with_edge.push_back(u);
+                }
+            }
+        }
 
         int left_len_noedge = old_bd.left_len - left_len;
         if ((left_len_noedge > (int)right_without_w.size()) || (left_len > (int)right_with_edge.size())) {
             // Stop early if we know that there are vertices in the first graph that can't be matched
-            break;
+            return {};
         }
         if (left_len_noedge && right_without_w.size())
             new_d.push_back({l+left_len, left_len_noedge, std::move(right_without_w), old_bd.is_adjacent});
