@@ -225,8 +225,7 @@ bool can_backtrack_by_alldiff(const vector<Bidomain>& domains,
     int vv0_count = 0;
     int vv1_count = 0;
 
-    for (int k=0; k<(int)domains.size()-1; k++) {
-        const Bidomain& bd = domains[k];
+    for (const auto& bd : domains) {
         for (int j=bd.l; j<bd.l + bd.left_len; j++) {
             int v = left[j];
             if (!vv0[v]) {
