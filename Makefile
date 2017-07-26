@@ -1,5 +1,5 @@
 CXX := g++
-CXXFLAGS := -O3 -g -ggdb -march=native
+CXXFLAGS := -O3 -march=native
 PROGRAMS := mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy non_ind_mcsp_2paths
 
 all: $(PROGRAMS)
