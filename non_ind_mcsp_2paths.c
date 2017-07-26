@@ -143,6 +143,101 @@ unsigned long long nodes{ 0 };
 /*******************************************************************************
 *******************************************************************************/
 
+#define SMALL_ARR_SZ 16
+class IntVec {
+    int small_arr[SMALL_ARR_SZ];
+    int sz;
+    int max_capacity;
+    int *vals;
+public:
+    IntVec(int max_capacity) : sz(0), max_capacity(max_capacity), vals(small_arr) {}
+    ~IntVec() { if (sz > SMALL_ARR_SZ) delete[] vals; }
+    IntVec(const IntVec& a) : sz(0), max_capacity(a.max_capacity), vals(small_arr) {
+        std::cerr << "IntVec copy constructor" << std::endl;
+        // TODO: make this more efficient
+        for (const int x : a)
+            push_back(x);
+    }
+    IntVec& operator=(const IntVec& a) {
+        sz = a.sz;
+        max_capacity = a.max_capacity;
+        if (sz > SMALL_ARR_SZ) {
+            vals = new int[max_capacity];
+        } else {
+            vals = small_arr;
+        }
+        for (int i=0; i<sz; i++)
+            vals[i] = a.vals[i];
+        return *this;
+    }
+    IntVec(IntVec&& a) : sz(a.sz), max_capacity(a.max_capacity) {
+//        std::cerr << "IntVec move constructor" << std::endl;
+        if (sz > SMALL_ARR_SZ) {
+            vals = a.vals;
+            a.vals = nullptr;
+            a.sz = 0;
+        } else {
+            for (int i=0; i<sz; i++)
+                small_arr[i] = a.small_arr[i];
+            vals = small_arr;
+        }
+    }
+    IntVec& operator=(IntVec&& a) {
+//        std::cerr << "IntVec move assignment operator" << std::endl;
+        if (this != &a) {
+            max_capacity = a.max_capacity;
+            if (sz > SMALL_ARR_SZ)
+                delete[] vals;
+            sz = a.sz;
+            if (sz > SMALL_ARR_SZ) {
+                vals = a.vals;
+                a.vals = nullptr;
+                a.sz = 0;
+            } else {
+                for (int i=0; i<sz; i++)
+                    small_arr[i] = a.small_arr[i];
+                vals = small_arr;
+            }
+        }
+        return *this;
+    }
+    void push_back(int x) {
+        if (sz == SMALL_ARR_SZ) {
+            vals = new int[max_capacity];
+            for (int i=0; i<SMALL_ARR_SZ; i++) {
+                vals[i] = small_arr[i];
+            }
+        }
+        vals[sz++] = x;
+    }
+    int *begin() { return vals; }
+    int *begin() const { return vals; }
+    int *cbegin() const { return vals; }
+    int *end() { return vals + sz; }
+    int *end() const { return vals + sz; }
+    int *cend() const { return vals + sz; }
+    int& operator[](std::size_t idx) { return vals[idx]; }
+    const int& operator[](std::size_t idx) const { return vals[idx]; }
+    int size() const { return sz; }
+    void erase_vals(vector<unsigned char>& vals_to_erase) {
+        int k=0;
+        for (int i=0; i<sz; i++) {
+            if (!vals_to_erase[vals[i]]) {
+                vals[k] = vals[i];
+                ++k;
+            }
+        }
+        if (k <= SMALL_ARR_SZ && sz > SMALL_ARR_SZ) {
+            for (int i=0; i<k; i++)
+                small_arr[i] = vals[i];
+            delete[] vals;
+            vals = small_arr;
+        }
+        sz = k;
+    }
+    int get_max_capacity() const { return max_capacity; }
+};
+
 struct VtxPair {
     int v;
     int w;
@@ -150,15 +245,29 @@ struct VtxPair {
 };
 
 struct Bidomain {
-    vector<int> left_set;
-    vector<int> right_set;
+    IntVec left_set;
+    IntVec right_set;
     bool is_adjacent;
     int left_len() const { return left_set.size(); };
     int right_len() const { return right_set.size(); };
-    Bidomain(vector<int> left_set, vector<int> right_set, bool is_adjacent):
-            left_set(left_set),
-            right_set(right_set),
+    Bidomain(IntVec left_set, IntVec right_set, bool is_adjacent):
+            left_set(std::move(left_set)),
+            right_set(std::move(right_set)),
             is_adjacent(is_adjacent) { };
+    Bidomain(Bidomain&& a) : left_set(std::move(a.left_set)), right_set(std::move(a.right_set)),
+            is_adjacent(a.is_adjacent)
+    {
+//        std::cerr << "Bidomain move constructor" << std::endl;
+    }
+    Bidomain& operator=(Bidomain&& a) {
+//        std::cerr << "Bidomain move assignment operator" << std::endl;
+        if (this != &a) {
+            is_adjacent = a.is_adjacent;
+            left_set = std::move(a.left_set);
+            right_set = std::move(a.right_set);
+        }
+        return *this;
+    }
 };
 
 void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
@@ -171,7 +280,7 @@ void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
     }
     cout << std::endl;
     for (unsigned int i=0; i<domains.size(); i++) {
-        struct Bidomain bd = domains[i];
+        const struct Bidomain& bd = domains[i];
         cout << "Left  ";
         for (int v : bd.left_set)
             cout << v << " ";
@@ -226,9 +335,10 @@ bool propagate_alldiff(vector<Bidomain>& domains, const Graph& g0, const Graph& 
     for (int i=0; i<(int)domains.size(); i++) {
         auto& bd = domains[i];
         if (ww_to_erase.size()) {
-            bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
-                        [&](int w){ return ww_to_erase[w]; }),
-                    bd.right_set.end());
+            bd.right_set.erase_vals(ww_to_erase);
+//            bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
+//                        [&](int w){ return ww_to_erase[w]; }),
+//                    bd.right_set.end());
         }
 
         vv0_count += bd.left_len();
@@ -320,11 +430,11 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     new_d.reserve(d.size());
     for (const Bidomain& old_bd : d) {
         // left_with_edge is the set of vertices (not including v) with edges to v
-        vector<int> left_with_edge;
-        left_with_edge.reserve(old_bd.left_set.size());
+        IntVec left_with_edge(old_bd.left_set.get_max_capacity());
+//        left_with_edge.reserve(old_bd.left_set.size());
         // left_without_edge is the set of vertices (not including v) without any edges to v
-        vector<int> left_without_edge;
-        left_without_edge.reserve(old_bd.left_set.size());
+        IntVec left_without_edge(old_bd.left_set.get_max_capacity());
+//        left_without_edge.reserve(old_bd.left_set.size());
         for (int u : old_bd.left_set) {
             if (u != v) {
                 if (g0.adjmat[v][u]) {
@@ -336,11 +446,11 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         }
 
         // right_with_edge is the set of vertices (not including w) with edges to w
-        vector<int> right_with_edge;
-        right_with_edge.reserve(old_bd.right_set.size());
+        IntVec right_with_edge(old_bd.right_set.get_max_capacity());
+//        right_with_edge.reserve(old_bd.right_set.size());
         // right_without_w is the right set with w removed
-        vector<int> right_without_w;
-        right_without_w.reserve(old_bd.right_set.size());
+        IntVec right_without_w(old_bd.right_set.get_max_capacity());
+//        right_without_w.reserve(old_bd.right_set.size());
         for (int u : old_bd.right_set) {
             if (u != w) {
                 right_without_w.push_back(u);
@@ -479,8 +589,8 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     for (int is_isolated=0; is_isolated<=1; is_isolated++) {
         // Create a bidomain for each label that appears in both graphs
         for (unsigned int label : labels) {
-            vector<int> left_set;
-            vector<int> right_set;
+            IntVec left_set(g0.n);
+            IntVec right_set(g1.n);
 
             for (int i=0; i<g0.n; i++)
                 if (g0.label[i]==label && is_isolated==(g0_deg[i]==0))
