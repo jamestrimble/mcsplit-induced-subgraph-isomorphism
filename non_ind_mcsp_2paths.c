@@ -497,8 +497,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<vector<int>> g0_2p = count_2paths(g0);
     vector<vector<int>> g1_2p = count_2paths(g1);
 
-    vector<int> left;  // the buffer of vertex indices for the left partitions
-    vector<int> right;  // the buffer of vertex indices for the right partitions
+    vector<int> left;  // the big list of vertex indices for the left partitions
 
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
@@ -530,24 +529,18 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
         // Create a bidomain for each label that appears in both graphs
         for (unsigned int label : labels) {
             int start_l = left.size();
-            int start_r = right.size();
+            vector<int> right_set;
 
             for (int i=0; i<g0.n; i++)
                 if (g0.label[i]==label && is_isolated==(g0_deg[i]==0))
                     left.push_back(i);
             for (int i=0; i<g1.n; i++)
                 if (g1.label[i]==label && (is_isolated || g1_deg[i]>0))
-                    right.push_back(i);
+                    right_set.push_back(i);
 
             int left_len = left.size() - start_l;
-            int right_len = right.size() - start_r;
 
-            vector<int> right_set;
-            for (int i=start_r; i<start_r+right_len; i++) {
-    //            std::cout << right[i] << std::endl;
-                right_set.push_back(right[i]);
-            }
-            if (left_len && right_len)
+            if (left_len && right_set.size())
                 domains.push_back({start_l, left_len, right_set, false});
         }
     }
