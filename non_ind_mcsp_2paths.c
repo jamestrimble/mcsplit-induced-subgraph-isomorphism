@@ -141,7 +141,6 @@ static struct argp argp = { options, parse_opt, args_doc, doc };
 unsigned long long nodes{ 0 };
 
 /*******************************************************************************
-                                 MCS functions
 *******************************************************************************/
 
 struct VtxPair {
