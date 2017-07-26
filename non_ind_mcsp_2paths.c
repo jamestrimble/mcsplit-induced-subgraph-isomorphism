@@ -221,64 +221,33 @@ int calc_bound(const vector<Bidomain>& domains)
 bool propagate_alldiff(vector<Bidomain>& domains,
         const Graph& g0, const Graph& g1, vector<int>& left)
 {
-    // These are really vectors of boolean values
-    vector<unsigned char> vv0(g0.n, 0);
+    // This is really a vector of boolean values
     vector<unsigned char> vv1(g1.n, 0);
 
-    int x = -1;
     int vv0_count = 0;
     int vv1_count = 0;
+    vector<unsigned char> ww_to_erase;
     for (int i=0; i<(int)domains.size(); i++) {
         auto& bd = domains[i];
-        for (int j=bd.l; j<bd.l + bd.left_len; j++) {
-            int v = left[j];
-            vv0[v] = true;
-            vv0_count++;
+        if (ww_to_erase.size()) {
+            bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
+                        [&](int w){ return ww_to_erase[w]; }),
+                    bd.right_set.end());
         }
+
+        vv0_count += bd.left_len;
+
         for (int w : bd.right_set) {
             if (!vv1[w]) {
                 vv1[w] = true;
                 vv1_count++;
             }
         }
+
         if (vv0_count > vv1_count)
             return false;
-        else if (vv0_count==vv1_count)
-            x = i;
-    }
-    if (x > -1) {
-        vv0_count = 0;
-        vv1_count = 0;
-        for (int i=0; i<g0.n; i++) vv0[i] = 0;
-        for (int i=0; i<g1.n; i++) vv1[i] = 0;
-        std::vector<unsigned char> ww_to_erase(g1.n, 0);
-        bool there_are_ww_to_erase = false;
-        for (int i=0; i<(int)domains.size(); i++) {
-            auto& bd = domains[i];
-            if (there_are_ww_to_erase) {
-                bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
-                            [&](int w){ return ww_to_erase[w]; }),
-                        bd.right_set.end());
-            }
-            if (i <= x) {
-                for (int j=bd.l; j<bd.l + bd.left_len; j++) {
-                    int v = left[j];
-                    vv0[v] = true;
-                    vv0_count++;
-                }
-                for (int w : bd.right_set) {
-                    if (!vv1[w]) {
-                        vv1[w] = true;
-                        vv1_count++;
-                    }
-                }
-                if (vv0_count == vv1_count) {
-                    there_are_ww_to_erase = true;
-                    for (int i=0; i<g1.n; i++)
-                        ww_to_erase[i] = vv1[i];
-                }
-            }
-        }
+        else if (vv0_count == vv1_count)
+            ww_to_erase = vv1;
     }
     return true;
 }
