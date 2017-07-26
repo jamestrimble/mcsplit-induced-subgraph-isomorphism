@@ -217,15 +217,19 @@ int calc_bound(const vector<Bidomain>& domains)
     return bound;
 }
 
-bool can_backtrack_by_alldiff(const vector<Bidomain>& domains,
-        const Graph& g0, const Graph& g1, const vector<int>& left)
+// Returns false if we can backtrack
+bool propagate_alldiff(vector<Bidomain>& domains,
+        const Graph& g0, const Graph& g1, vector<int>& left)
 {
-    vector<bool> vv0(g0.n);
-    vector<bool> vv1(g1.n);
+    // These are really vectors of boolean values
+    vector<unsigned char> vv0(g0.n);
+    vector<unsigned char> vv1(g1.n);
     int vv0_count = 0;
     int vv1_count = 0;
 
-    for (const auto& bd : domains) {
+    int x = -1;
+    for (int i=0; i<(int)domains.size(); i++) {
+        auto& bd = domains[i];
         for (int j=bd.l; j<bd.l + bd.left_len; j++) {
             int v = left[j];
             if (!vv0[v]) {
@@ -240,9 +244,42 @@ bool can_backtrack_by_alldiff(const vector<Bidomain>& domains,
             }
         }
         if (vv0_count > vv1_count)
-            return true;
+            return false;
+        else if (x==-1 && vv0_count==vv1_count)
+            x = i;
     }
-    return false;
+    if (x > -1) {
+        for (int i=0; i<g0.n; i++) vv0[i] = 0;
+        for (int i=0; i<g1.n; i++) vv1[i] = 0;
+        for (int i=0; i<=x; i++) {
+            auto& bd = domains[i];
+            for (int j=bd.l; j<bd.l + bd.left_len; j++) {
+                int v = left[j];
+                vv0[v] = true;
+            }
+            for (int w : bd.right_set) {
+                vv1[w] = true;
+            }
+        }
+        for (int i=x+1; i<(int)domains.size(); i++) {
+            auto& bd = domains[i];
+
+            int k=bd.l;
+            for (int j=bd.l; j<bd.l+bd.left_len; j++) {
+                int v = left[j];
+                if (vv0[v]) {
+                    std::swap(left[k], left[j]);
+                    k++;
+                }
+            }
+            bd.l = k;
+
+            bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
+                        [&](int w){ return vv1[w]; }),
+                    bd.right_set.end());
+        }
+    }
+    return true;
 }
 
 int find_min_value(const vector<int>& arr, int start_idx, int len) {
@@ -434,7 +471,7 @@ void solve(const Graph & g0, const Graph & g1,
     if ((int)current.size() + calc_bound(domains) < g0.n)
         return;
 
-    if (can_backtrack_by_alldiff(domains, g0, g1, left))
+    if (!propagate_alldiff(domains, g0, g1, left))
         return;
 
     auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left,
