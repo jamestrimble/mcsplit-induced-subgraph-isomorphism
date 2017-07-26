@@ -252,21 +252,12 @@ bool propagate_alldiff(vector<Bidomain>& domains,
     return true;
 }
 
-int find_min_value(const vector<int>& arr, int start_idx, int len) {
-    int min_v = INT_MAX;
-    for (int i=0; i<len; i++)
-        if (arr[start_idx + i] < min_v)
-            min_v = arr[start_idx + i];
-    return min_v;
-}
-
 bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& current,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p
         )
 {
     for (auto pair : current) {
         if (g0_2p[v][pair.v] < g1_2p[w][pair.w]) {
-        //if (g0_2p.at(v).at(pair.v) < g1_2p.at(w).at(pair.w)) {
             return true;
         }
     }
@@ -285,14 +276,10 @@ std::pair<int, int> bidomain_score(
         std::pair<int, int> incumbent)
 {
     auto best = incumbent;
-//    int best_v = INT_MAX;
-//    int lowest_num_possible_assignments = INT_MAX;
     for (int i=0; i<bd.left_len; i++) {
         int v = left[bd.l + i];
-        //int num_possible_assignments = 0;
         auto vtx_score = std::make_pair(0, v);
         for (int w : bd.right_set) {
-//            std::cout << w << std::endl;
             if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
                 vtx_score.first++;
                 if (vtx_score > best)
@@ -389,22 +376,6 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     return new_d;
 }
 
-// returns the index of the smallest value in arr that is >w.
-// Assumption: such a value exists
-// Assumption: arr contains no duplicates
-// Assumption: arr has no values==INT_MAX
-int index_of_next_smallest(const vector<int>& arr, int start_idx, int len, int w) {
-    int idx = -1;
-    int smallest = INT_MAX;
-    for (int i=0; i<len; i++) {
-        if (arr[start_idx + i]>w && arr[start_idx + i]<smallest) {
-            smallest = arr[start_idx + i];
-            idx = i;
-        }
-    }
-    return idx;
-}
-
 void remove_vtx_from_left_domain(vector<int>& left, Bidomain& bd, int v)
 {
     int i = 0;
@@ -425,10 +396,8 @@ void solve(const Graph & g0, const Graph & g1,
     if (arguments.verbose) show(current, domains, left);
     nodes++;
 
-    if (current.size() > incumbent.size()) {
+    if (current.size() > incumbent.size())
         incumbent = current;
-        //if (!arguments.quiet) cout << "Incumbent size: " << incumbent.size() << endl;
-    }
 
     if (current.size()==(unsigned)g0.n) {
         solution_count++;
