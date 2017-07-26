@@ -221,7 +221,7 @@ int calc_bound(const vector<Bidomain>& domains)
     return bound;
 }
 
-bool can_backtrack_by_alldiff(const vector<Bidomain>& domains, const vector<int>& bidomain_order,
+bool can_backtrack_by_alldiff(const vector<Bidomain>& domains,
         const Graph& g0, const Graph& g1, const vector<int>& left)
 {
     vector<bool> vv0(g0.n);
@@ -230,7 +230,7 @@ bool can_backtrack_by_alldiff(const vector<Bidomain>& domains, const vector<int>
     int vv1_count = 0;
 
     for (int k=0; k<(int)domains.size()-1; k++) {
-        const Bidomain& bd = domains[bidomain_order[k]];
+        const Bidomain& bd = domains[k];
         for (int j=bd.l; j<bd.l + bd.left_len; j++) {
             int v = left[j];
             if (!vv0[v]) {
@@ -305,7 +305,6 @@ std::pair<int, int> bidomain_score(
 }
 
 std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& domains,
-        const vector<int>& bidomain_order,
         const vector<int> & left,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
         const vector<int>& g0_deg,
@@ -316,9 +315,8 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     // ties on the smallest vertex index in the left set
     auto best_score = std::make_pair(INT_MAX, INT_MAX);
     int best = -1;
-    for (unsigned int k=0; k<bidomain_order.size(); k++) {
-        int i = bidomain_order[k];
-        const Bidomain &bd = domains[i];
+    for (int i=0; i<(int)domains.size(); i++) {
+        const Bidomain& bd = domains[i];
         auto score = bidomain_score(bd, left, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
         if (score < best_score) {
             if (score.first == 0)
@@ -346,13 +344,11 @@ int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int
 
 // multiway is for directed and/or labelled graphs
 vector<Bidomain> filter_domains(const vector<Bidomain> & d,
-        vector<int>& bidomain_order, vector<int> & left,
-        const Graph & g0, const Graph & g1, int v, int w)
+        vector<int> & left, const Graph & g0, const Graph & g1, int v, int w)
 {
     vector<Bidomain> new_d;
     new_d.reserve(d.size());
-    for (int i : bidomain_order) {
-        const Bidomain& old_bd = d[i];
+    for (const Bidomain& old_bd : d) {
         int l = old_bd.l;
         // After this partition, left_len is the length of the
         // array of vertices with edges from v
@@ -375,13 +371,17 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         int left_len_noedge = old_bd.left_len - left_len;
         if ((left_len_noedge > (int)right_without_w.size()) || (left_len > (int)right_with_edge.size())) {
             // Stop early if we know that there are vertices in the first graph that can't be matched
-            return new_d;
+            break;
         }
         if (left_len_noedge && right_without_w.size())
             new_d.push_back({l+left_len, left_len_noedge, std::move(right_without_w), old_bd.is_adjacent});
         if (left_len && right_with_edge.size())
             new_d.push_back({l, left_len, std::move(right_with_edge), true});
     }
+
+    std::sort(new_d.begin(), new_d.end(),
+            [](const Bidomain& a, const Bidomain& b) { return a.right_len() < b.right_len(); });
+
     return new_d;
 }
 
@@ -437,15 +437,10 @@ void solve(const Graph & g0, const Graph & g1,
     if ((int)current.size() + calc_bound(domains) < g0.n)
         return;
 
-    vector<int> bidomain_order(domains.size());
-    std::iota(std::begin(bidomain_order), std::end(bidomain_order), 0);
-    std::sort(bidomain_order.begin(), bidomain_order.end(),
-            [&domains](const int a, const int b) { return domains[a].right_len() < domains[b].right_len(); });
-
-    if (can_backtrack_by_alldiff(domains, bidomain_order, g0, g1, left))
+    if (can_backtrack_by_alldiff(domains, g0, g1, left))
         return;
 
-    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, bidomain_order, left,
+    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, left,
             g0_2p, g1_2p, g0_deg, g1_deg, current);
     int bd_idx = bd_idx_and_v.first;
     int v = bd_idx_and_v.second;
@@ -461,7 +456,7 @@ void solve(const Graph & g0, const Graph & g1,
         int w = bd.right_set[i];
 
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
-            auto new_domains = filter_domains(domains, bidomain_order, left, g0, g1, v, w);
+            auto new_domains = filter_domains(domains, left, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
             solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, left, solution_count);
             current.pop_back();
