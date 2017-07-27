@@ -16,6 +16,7 @@
 #include <argp.h>
 #include <limits.h>
 
+using std::set;
 using std::vector;
 using std::cout;
 using std::endl;
@@ -27,6 +28,9 @@ static void fail(std::string msg) {
 
 std::random_device rd;
 std::mt19937 mt19937(rd());
+
+const unsigned int MAX_NOGOOD_SIZE = 10;
+const unsigned int MAX_NOGOOD_LIST_LEN = 20000;
 
 /*******************************************************************************
                              Command-line arguments
@@ -247,6 +251,13 @@ struct VtxPair {
     int w;
     VtxPair(int v, int w): v(v), w(w) {}
 };
+
+inline bool operator< (const VtxPair& lhs, const VtxPair& rhs){ return lhs.v<rhs.v || (lhs.v==rhs.v && lhs.w<rhs.w); }
+inline bool operator> (const VtxPair& lhs, const VtxPair& rhs){ return rhs < lhs; }
+inline bool operator<=(const VtxPair& lhs, const VtxPair& rhs){ return !(lhs > rhs); }
+inline bool operator>=(const VtxPair& lhs, const VtxPair& rhs){ return !(lhs < rhs); }
+
+typedef vector<set<vector<VtxPair>>> NogoodSets;
 
 struct Bidomain {
     IntVec left_set;
@@ -480,22 +491,28 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     return new_d;
 }
 
-void solve(const Graph & g0, const Graph & g1,
+#define FOUND_SOLUTION 0
+#define NO_SOLUTION 1
+#define TIMEOUT 2
+#define REACHED_NODE_LIMIT 3
+
+int solve(const Graph & g0, const Graph & g1,
         const vector<int>& g0_deg, const vector<int>& g1_deg,
         const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
-        long long & solution_count, long long& node_count, long long node_limit)
+        long long & solution_count, long long& node_count, long long node_limit,
+        NogoodSets& nogoods)
 {
     node_count++;
 //    cout << node_count << " "<< node_limit << endl;
 
     if (node_count >= node_limit) {
 //        cout << "!" << endl;
-        return;
+        return REACHED_NODE_LIMIT;
     }
 
     if (abort_due_to_timeout)
-        return;
+        return TIMEOUT;
 
     if (arguments.verbose) show(current, domains);
     nodes++;
@@ -505,17 +522,17 @@ void solve(const Graph & g0, const Graph & g1,
 
     if (current.size()==(unsigned)g0.n) {
         solution_count++;
-        return;
+        return FOUND_SOLUTION;
     }
 
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
-        return;
+        return FOUND_SOLUTION;
 
     if ((int)current.size() + calc_bound(domains) < g0.n)
-        return;
+        return NO_SOLUTION;
 
     if (!propagate_alldiff(domains, g0, g1))
-        return;
+        return NO_SOLUTION;
 
     auto bd_idx_and_v = select_bidomain_and_branching_var(domains,
             g0_2p, g1_2p, g0_deg, g1_deg, current);
@@ -523,25 +540,30 @@ void solve(const Graph & g0, const Graph & g1,
     int v = bd_idx_and_v.second;
 
     if (bd_idx == -1)   // Return if there's nothing left to branch on
-        return;
+        return NO_SOLUTION;
     Bidomain &bd = domains[bd_idx];
 
     std::shuffle(std::begin(bd.right_set), std::end(bd.right_set), mt19937);
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
-    for (int i=0; i<bd.right_len(); i++) {
-        int w = bd.right_set[i];
-
+    for (int w : bd.right_set) {
         if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
             auto new_domains = filter_domains(domains, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
-            solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, solution_count,
-                    node_count, node_limit);
+            if (current.size() > MAX_NOGOOD_SIZE || nogoods[current.size()].count(current)==0) {
+                int result = solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, solution_count,
+                        node_count, node_limit, nogoods);
+                if (result == FOUND_SOLUTION)
+                    return FOUND_SOLUTION;
+                if (result==NO_SOLUTION && current.size()<=MAX_NOGOOD_SIZE && nogoods[current.size()].size()<MAX_NOGOOD_LIST_LEN)
+                    nogoods[current.size()].insert(current);
+            }
             current.pop_back();
             if (node_count >= node_limit)
-                return;
+                return REACHED_NODE_LIMIT;
         }
     }
+    return NO_SOLUTION;
 }
 
 // TODO: change values from negative to positive
@@ -625,12 +647,15 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<VtxPair> current;
     long long solution_count = 0;
 
+    NogoodSets nogoods(MAX_NOGOOD_SIZE+1);
+
     long long node_count;
     long long node_limit_multiplier = 100;
     int num_attempts = 0;
     vector<long long> luby_seq = {1};
     int luby_seq_pos = 0;
     long long node_limit;
+    int result;
     do {
         if (luby_seq_pos == (int) luby_seq.size()) {
             int luby_seq_len = luby_seq.size();
@@ -644,9 +669,15 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 //        cout << "Number of restarts: " << num_attempts << endl;
 //        cout << "   Limit: " << node_limit << endl;
         num_attempts++;
-        solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, domains, solution_count,
-                node_count, node_limit);
-    } while (node_count >= node_limit);
+//        std::cout << incumbent.size() << " " << g0.n << endl;
+//        for (unsigned int i=0; i<=MAX_NOGOOD_SIZE; i++)
+//            std::cout << " * " << i << " " << nogoods[i].size() << endl;
+        result = solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, domains, solution_count,
+                node_count, node_limit, nogoods);
+    } while (result == REACHED_NODE_LIMIT);
+    
+//    for (unsigned int i=0; i<=MAX_NOGOOD_SIZE; i++)
+//        std::cout << " * " << i << " " << nogoods[i].size() << endl;
 
     cout << "Number of restarts: " << (num_attempts-1) << endl;
 
