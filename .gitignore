@@ -6,3 +6,4 @@ mcsp_2paths
 mcsp_2paths_tighter_bounding
 mcsp_lazy
 non_ind_mcsp_2paths
+non_ind_mcsp_2paths_restarts
