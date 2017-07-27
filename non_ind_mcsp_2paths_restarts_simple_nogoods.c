@@ -503,7 +503,6 @@ int solve(const Graph & g0, const Graph & g1,
         long long & solution_count, long long& node_count, long long node_limit,
         NogoodSets& nogoods)
 {
-    node_count++;
 //    cout << node_count << " "<< node_limit << endl;
 
     if (node_count >= node_limit) {
@@ -563,6 +562,7 @@ int solve(const Graph & g0, const Graph & g1,
                 return REACHED_NODE_LIMIT;
         }
     }
+    node_count++;
     return NO_SOLUTION;
 }
 

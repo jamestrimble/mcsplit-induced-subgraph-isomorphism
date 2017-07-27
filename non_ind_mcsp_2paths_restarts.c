@@ -486,7 +486,6 @@ void solve(const Graph & g0, const Graph & g1,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
         long long & solution_count, long long& node_count, long long node_limit)
 {
-    node_count++;
 //    cout << node_count << " "<< node_limit << endl;
 
     if (node_count >= node_limit) {
@@ -542,6 +541,7 @@ void solve(const Graph & g0, const Graph & g1,
                 return;
         }
     }
+    node_count++;
 }
 
 // TODO: change values from negative to positive
