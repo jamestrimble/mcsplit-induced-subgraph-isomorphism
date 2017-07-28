@@ -38,6 +38,7 @@ static struct argp_option options[] = {
     {"directed", 'i', 0, 0, "Use directed graphs"},
     {"enumerate", 'e', 0, 0, "Count solutions"},
     {"labelled", 'a', 0, 0, "Use edge and vertex labels"},
+    {"opposite-value-heuristic", 'o', 0, 0, "Use opposite value heuristic"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
     {"timeout", 't', "timeout", 0, "Specify a timeout (seconds)"},
     { 0 }
@@ -52,6 +53,7 @@ static struct {
     bool enumerate;
     bool edge_labelled;
     bool vertex_labelled;
+    bool opposite_value_heuristic;
     char *filename1;
     char *filename2;
     int timeout;
@@ -71,6 +73,7 @@ void set_default_arguments() {
     arguments.vertex_labelled = false;
     arguments.filename1 = NULL;
     arguments.filename2 = NULL;
+    arguments.opposite_value_heuristic = false;
     arguments.timeout = 0;
     arguments.arg_num = 0;
 }
@@ -109,6 +112,9 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             if (arguments.edge_labelled)
                 fail("The -a and -x options can't be used together.");
             arguments.vertex_labelled = true;
+            break;
+        case 'o':
+            arguments.opposite_value_heuristic = true;
             break;
         case 't':
             arguments.timeout = std::stoi(arg);
@@ -668,9 +674,10 @@ int main(int argc, char** argv) {
     });
     vector<int> vv1(g1.n);
     std::iota(std::begin(vv1), std::end(vv1), 0);
-    std::stable_sort(std::begin(vv1), std::end(vv1), [&](int a, int b) {
-        return g1_deg[a]>g1_deg[b];
-    });
+    if (arguments.opposite_value_heuristic)
+        std::stable_sort(std::begin(vv1), std::end(vv1), [&](int a, int b) { return g1_deg[a]<g1_deg[b]; });
+    else
+        std::stable_sort(std::begin(vv1), std::end(vv1), [&](int a, int b) { return g1_deg[a]>g1_deg[b]; });
 
     struct Graph g0_sorted = induced_subgraph(g0, vv0);
     struct Graph g1_sorted = induced_subgraph(g1, vv1);
