@@ -428,7 +428,6 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     return std::make_pair(best, best_score.second);
 }
 
-// multiway is for directed and/or labelled graphs
 vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         const Graph & g0, const Graph & g1, int v, int w)
 {
