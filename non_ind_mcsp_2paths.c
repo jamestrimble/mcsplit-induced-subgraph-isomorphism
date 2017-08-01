@@ -3,6 +3,7 @@
 #include <algorithm>
 #include <chrono>
 #include <iostream>
+#include <numeric>
 #include <set>
 #include <string>
 #include <utility>
