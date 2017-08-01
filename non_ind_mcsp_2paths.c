@@ -340,12 +340,8 @@ bool propagate_alldiff(vector<Bidomain>& domains, const Graph& g0, const Graph& 
     vector<unsigned char> ww_to_erase;
     for (int i=0; i<(int)domains.size(); i++) {
         auto& bd = domains[i];
-        if (ww_to_erase.size()) {
+        if (ww_to_erase.size())
             bd.right_set.erase_vals(ww_to_erase);
-//            bd.right_set.erase(std::remove_if(bd.right_set.begin(), bd.right_set.end(), 
-//                        [&](int w){ return ww_to_erase[w]; }),
-//                    bd.right_set.end());
-        }
 
         vv0_count += bd.left_len();
 
