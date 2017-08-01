@@ -540,7 +540,6 @@ void solve(const Graph & g0, const Graph & g1,
     }
 }
 
-// TODO: change values from negative to positive
 vector<vector<int>> count_2paths(const Graph & g)
 {
     vector<vector<int>> num_2paths(g.n, vector<int>(g.n, 0));
