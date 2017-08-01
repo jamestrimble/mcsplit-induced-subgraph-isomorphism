@@ -276,6 +276,13 @@ struct Bidomain {
     }
 };
 
+struct UsefulStuff {
+    vector<int> g0_deg;
+    vector<int> g1_deg;
+    vector<vector<int>> g0_2p;
+    vector<vector<int>> g1_2p;
+};
+
 void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
 {
     cout << "Nodes: " << nodes << std::endl;
@@ -376,9 +383,7 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
 // giving the lowest vertex index of a vertex whose domain size is minimal
 std::pair<int, int> bidomain_score(
         const Bidomain &bd,
-        const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
-        const vector<int>& g0_deg,
-        const vector<int>& g1_deg,
+        const UsefulStuff& useful_stuff,
         const vector<VtxPair>& current,
         std::pair<int, int> incumbent)
 {
@@ -386,7 +391,8 @@ std::pair<int, int> bidomain_score(
     for (int v : bd.left_set) {
         auto vtx_score = std::make_pair(0, v);
         for (int w : bd.right_set) {
-            if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
+            if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
+                    !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
                 vtx_score.first++;
                 if (vtx_score > best)
                     break;
@@ -400,10 +406,7 @@ std::pair<int, int> bidomain_score(
 }
 
 std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& domains,
-        const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p,
-        const vector<int>& g0_deg,
-        const vector<int>& g1_deg,
-        const vector<VtxPair>& current)
+        const UsefulStuff& useful_stuff, const vector<VtxPair>& current)
 {
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
@@ -411,7 +414,7 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
     int best = -1;
     for (int i=0; i<(int)domains.size(); i++) {
         const Bidomain& bd = domains[i];
-        auto score = bidomain_score(bd, g0_2p, g1_2p, g0_deg, g1_deg, current, best_score);
+        auto score = bidomain_score(bd, useful_stuff, current, best_score);
         if (score < best_score) {
             if (score.first == 0)
                 return std::make_pair(-1, -1);
@@ -488,8 +491,7 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
 }
 
 void solve(const Graph & g0, const Graph & g1,
-        const vector<int>& g0_deg, const vector<int>& g1_deg,
-        const vector<vector<int>> & g0_2p, const vector<vector<int>> & g1_2p,
+        const UsefulStuff& useful_stuff,
         vector<VtxPair> & incumbent, vector<VtxPair> & current, vector<Bidomain> & domains,
         long long & solution_count)
 {
@@ -516,8 +518,7 @@ void solve(const Graph & g0, const Graph & g1,
     if (!propagate_alldiff(domains, g0, g1))
         return;
 
-    auto bd_idx_and_v = select_bidomain_and_branching_var(domains,
-            g0_2p, g1_2p, g0_deg, g1_deg, current);
+    auto bd_idx_and_v = select_bidomain_and_branching_var(domains, useful_stuff, current);
     int bd_idx = bd_idx_and_v.first;
     int v = bd_idx_and_v.second;
 
@@ -529,10 +530,11 @@ void solve(const Graph & g0, const Graph & g1,
     for (int i=0; i<bd.right_len(); i++) {
         int w = bd.right_set[i];
 
-        if (g0_deg[v] <= g1_deg[w] && !assignment_impossible_by_2path_count(v, w, current, g0_2p, g1_2p)) {
+        if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
+                !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
             auto new_domains = filter_domains(domains, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
-            solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, new_domains, solution_count);
+            solve(g0, g1, useful_stuff, incumbent, current, new_domains, solution_count);
             current.pop_back();
         }
     }
@@ -618,7 +620,9 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, g0_deg, g1_deg, g0_2p, g1_2p, incumbent, current, domains, solution_count);
+
+    UsefulStuff useful_stuff = {std::move(g0_deg), std::move(g1_deg), std::move(g0_2p), std::move(g1_2p)};
+    solve(g0, g1, useful_stuff, incumbent, current, domains, solution_count);
 
     return {incumbent, solution_count};
 }
