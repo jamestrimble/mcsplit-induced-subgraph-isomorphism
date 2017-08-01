@@ -434,6 +434,10 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
 {
     vector<Bidomain> new_d;
     new_d.reserve(d.size());
+
+    auto& v_adjrow = g0.adjmat[v];
+    auto& w_adjrow = g1.adjmat[w];
+
     for (const Bidomain& old_bd : d) {
         // left_with_edge is the set of vertices (not including v) with edges to v
         IntVec left_with_edge(old_bd.left_set.get_max_capacity());
@@ -441,7 +445,7 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         IntVec left_without_edge(old_bd.left_set.get_max_capacity());
         for (int u : old_bd.left_set) {
             if (u != v) {
-                if (g0.adjmat[v][u]) {
+                if (v_adjrow[u]) {
                     left_with_edge.push_back(u);
                 } else {
                     left_without_edge.push_back(u);
@@ -457,7 +461,7 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
             for (int u : old_bd.right_set) {
                 if (u != w) {
                     right_without_w.push_back(u);
-                    if (g1.adjmat[w][u])
+                    if (w_adjrow[u])
                         right_with_edge.push_back(u);
                 }
             }
@@ -468,7 +472,7 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         } else if (left_with_edge.size()) {
             for (int u : old_bd.right_set)
                 if (u != w)
-                    if (g1.adjmat[w][u])
+                    if (w_adjrow[u])
                         right_with_edge.push_back(u);
         }
 
