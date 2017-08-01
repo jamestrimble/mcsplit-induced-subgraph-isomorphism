@@ -149,7 +149,7 @@ unsigned long long nodes{ 0 };
 /*******************************************************************************
 *******************************************************************************/
 
-#define SMALL_ARR_SZ 16
+#define SMALL_ARR_SZ 12
 class IntVec {
     int small_arr[SMALL_ARR_SZ];
     int sz;
