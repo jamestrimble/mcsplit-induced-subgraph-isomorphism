@@ -437,10 +437,8 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     for (const Bidomain& old_bd : d) {
         // left_with_edge is the set of vertices (not including v) with edges to v
         IntVec left_with_edge(old_bd.left_set.get_max_capacity());
-//        left_with_edge.reserve(old_bd.left_set.size());
         // left_without_edge is the set of vertices (not including v) without any edges to v
         IntVec left_without_edge(old_bd.left_set.get_max_capacity());
-//        left_without_edge.reserve(old_bd.left_set.size());
         for (int u : old_bd.left_set) {
             if (u != v) {
                 if (g0.adjmat[v][u]) {
@@ -453,17 +451,25 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
 
         // right_with_edge is the set of vertices (not including w) with edges to w
         IntVec right_with_edge(old_bd.right_set.get_max_capacity());
-//        right_with_edge.reserve(old_bd.right_set.size());
         // right_without_w is the right set with w removed
         IntVec right_without_w(old_bd.right_set.get_max_capacity());
-//        right_without_w.reserve(old_bd.right_set.size());
-        for (int u : old_bd.right_set) {
-            if (u != w) {
-                right_without_w.push_back(u);
-                if (g1.adjmat[w][u]) {
-                    right_with_edge.push_back(u);
+        if (left_without_edge.size() && left_with_edge.size()) {
+            for (int u : old_bd.right_set) {
+                if (u != w) {
+                    right_without_w.push_back(u);
+                    if (g1.adjmat[w][u])
+                        right_with_edge.push_back(u);
                 }
             }
+        } else if (left_without_edge.size()) {
+            for (int u : old_bd.right_set)
+                if (u != w)
+                    right_without_w.push_back(u);
+        } else if (left_with_edge.size()) {
+            for (int u : old_bd.right_set)
+                if (u != w)
+                    if (g1.adjmat[w][u])
+                        right_with_edge.push_back(u);
         }
 
         if ((left_without_edge.size() > right_without_w.size()) || (left_with_edge.size() > right_with_edge.size())) {
