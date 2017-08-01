@@ -421,8 +421,6 @@ std::pair<int, int> select_bidomain_and_branching_var(const vector<Bidomain>& do
                 return std::make_pair(-1, -1);
             best_score = score;
             best = i;
-            if (best_score.first == 1)
-                break;
         }
     }
     return std::make_pair(best, best_score.second);
