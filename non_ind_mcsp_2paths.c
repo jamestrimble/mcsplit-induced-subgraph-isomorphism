@@ -605,11 +605,17 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
             IntVec left_set(g0.n);
             IntVec right_set(g1.n);
 
-            for (int i=0; i<g0.n; i++)
-                if (g0.label[i]==label && is_isolated==(g0_deg[i]==0))
+            int left_min_deg = INT_MAX;
+            for (int i=0; i<g0.n; i++) {
+                if (g0.label[i]==label && is_isolated==(g0_deg[i]==0)) {
                     left_set.push_back(i);
+                    int deg = g0_deg[i];
+                    if (deg < left_min_deg)
+                        left_min_deg = deg;
+                }
+            }
             for (int i=0; i<g1.n; i++)
-                if (g1.label[i]==label && (is_isolated || g1_deg[i]>0))
+                if (g1.label[i]==label && (is_isolated || g1_deg[i]>0) && g1_deg[i]>=left_min_deg)
                     right_set.push_back(i);
 
             if (left_set.size() && right_set.size())
