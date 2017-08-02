@@ -460,23 +460,42 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
         IntVec right_with_edge(old_bd.right_set.size());
         // right_without_w is the right set with w removed
         IntVec right_without_w(old_bd.right_set.size());
+
+        // The next bit is could be done more simply at the cost of a little bit of efficiency;
+        // I've tried to reduce the number of checks of whether u == w
         if (left_without_edge.size() && left_with_edge.size()) {
-            for (int u : old_bd.right_set) {
-                if (u != w) {
-                    right_without_w.push_back(u);
-                    if (w_adjrow[u])
-                        right_with_edge.push_back(u);
-                }
+            int *p;
+            int *end = old_bd.right_set.end();
+            for (p=old_bd.right_set.begin(); p<end; p++) {
+                int u = *p;
+                if (u == w) break;
+                right_without_w.push_back(u);
+                if (w_adjrow[u])
+                    right_with_edge.push_back(u);
+            }
+            p++;
+            for (; p<end; p++) {
+                int u = *p;
+                right_without_w.push_back(u);
+                if (w_adjrow[u])
+                    right_with_edge.push_back(u);
             }
         } else if (left_without_edge.size()) {
-            for (int u : old_bd.right_set)
-                if (u != w)
-                    right_without_w.push_back(u);
+            int *p;
+            int *end = old_bd.right_set.end();
+            for (p=old_bd.right_set.begin(); p<end; p++) {
+                int u = *p;
+                if (u == w) break;
+                right_without_w.push_back(*p);
+            }
+            p++;
+            for (; p<end; p++) {
+                right_without_w.push_back(*p);
+            }
         } else if (left_with_edge.size()) {
             for (int u : old_bd.right_set)
-                if (u != w)
-                    if (w_adjrow[u])
-                        right_with_edge.push_back(u);
+                if (w_adjrow[u])
+                    right_with_edge.push_back(u);
         }
 
         if ((left_without_edge.size() > right_without_w.size()) || (left_with_edge.size() > right_with_edge.size())) {
