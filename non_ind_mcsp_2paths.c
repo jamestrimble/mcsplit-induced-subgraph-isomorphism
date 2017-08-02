@@ -500,7 +500,10 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     }
 
     std::sort(new_d.begin(), new_d.end(),
-            [](const Bidomain& a, const Bidomain& b) { return a.right_len() < b.right_len(); });
+            [](const Bidomain& a, const Bidomain& b) {
+                return a.right_len() < b.right_len() ||
+                        (a.right_len()==b.right_len() && a.left_set[0] < b.left_set[0]);
+            });
 
     return new_d;
 }
