@@ -515,42 +515,76 @@ vector<int> calculate_degrees(const Graph & g) {
     return degree;
 }
 
-vector<std::pair<vector<int>, vector<int>>> calculate_supp_degrees(const Graph& g0,
-        const Graph& g1, const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p) {
-    vector<std::pair<vector<int>, vector<int>>> retval;
-    for (int i=0; i<g0.n; i++) {
-        retval.push_back({vector<int>(g0.n), vector<int>(g1.n)});
+typedef vector<std::pair<vector<vector<int>>, vector<vector<int>>>> NDS;
+
+NDS calculate_supp_nds(const Graph& g0, const Graph& g1,
+        const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p)
+{
+    NDS retval;
+    int top = std::min(50, g0.n);  // TODO: move magic 50 somewhere
+    for (int i=0; i<top; i++) {
+        retval.push_back({vector<vector<int>>(g0.n), vector<vector<int>>(g1.n)});
         auto& p = retval.back();
+        std::vector<int> g0_deg(g0.n);
+        std::vector<int> g1_deg(g1.n);
         if (i==0) {
             // degrees in graphs
             for (int v=0; v<g0.n; v++)
                 for (int w=0; w<g0.n; w++)
                     if (g0.adjmat[v][w])
-                        p.first[v]++;
+                        g0_deg[v]++;
             for (int v=0; v<g1.n; v++)
                 for (int w=0; w<g1.n; w++)
                     if (g1.adjmat[v][w])
-                        p.second[v]++;
+                        g1_deg[v]++;
+            for (int v=0; v<g0.n; v++) {
+                for (int w=0; w<g0.n; w++)
+                    if (g0.adjmat[v][w])
+                        p.first[v].push_back(g0_deg[w]);
+                std::sort(p.first[v].begin(), p.first[v].end(), std::greater<int>());
+            }
+            for (int v=0; v<g1.n; v++) {
+                for (int w=0; w<g1.n; w++)
+                    if (g1.adjmat[v][w])
+                        p.second[v].push_back(g1_deg[w]);
+                std::sort(p.second[v].begin(), p.second[v].end(), std::greater<int>());
+            }
         } else {
             // degrees in supp graphs
             for (int v=0; v<g0.n; v++)
                 for (int w=0; w<g0.n; w++)
                     if (g0_2p[v][w] >= i)
-                        p.first[v]++;
+                        g0_deg[v]++;
             for (int v=0; v<g1.n; v++)
                 for (int w=0; w<g1.n; w++)
                     if (g1_2p[v][w] >= i)
-                        p.second[v]++;
+                        g1_deg[v]++;
+            for (int v=0; v<g0.n; v++) {
+                for (int w=0; w<g0.n; w++)
+                    if (g0_2p[v][w] >= i)
+                        p.first[v].push_back(g0_deg[w]);
+                std::sort(p.first[v].begin(), p.first[v].end(), std::greater<int>());
+            }
+            for (int v=0; v<g1.n; v++) {
+                for (int w=0; w<g1.n; w++)
+                    if (g1_2p[v][w] >= i)
+                        p.second[v].push_back(g1_deg[w]);
+                std::sort(p.second[v].begin(), p.second[v].end(), std::greater<int>());
+            }
         }
     }
     return retval;
 }
 
-bool val_ok_by_supp_degrees(int v, int w, vector<std::pair<vector<int>, vector<int>>>& supp_degrees)
+bool val_ok_by_supp_nds(int v, int w, NDS& supp_nds)
 {
-    for (auto& p : supp_degrees)
-        if (p.first[v] > p.second[w])
+    for (auto& p : supp_nds) {
+        if (p.first[v].size() > p.second[w].size())
             return false;
+        for (int i=0; i<(int)p.first[v].size(); i++)
+            if (p.first[v][i] > p.second[w][i])
+                return false;
+    }
     return true;
 }
 
@@ -573,7 +607,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
         }
     }
 
-    vector<std::pair<vector<int>, vector<int>>> supp_degs = calculate_supp_degrees(g0, g1, g0_2p, g1_2p);
+    NDS supp_nds = calculate_supp_nds(g0, g1, g0_2p, g1_2p);
 
     auto domains = vector<Bidomain> {};
 
@@ -594,7 +628,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
         IntVec right_set(g1.n);
 
         for (int i=0; i<g1.n; i++)
-            if (g1.label[i]==label && val_ok_by_supp_degrees(v, i, supp_degs)/*g1_deg[i]>=g0_deg[v]*/)
+            if (g1.label[i]==label && val_ok_by_supp_nds(v, i, supp_nds))
                 right_set.push_back(i);
 
         if (!right_set.size())
@@ -608,6 +642,7 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     long long solution_count = 0;
 
     UsefulStuff useful_stuff = {std::move(g0_2p), std::move(g1_2p)};
+    cout << "Starting search..." << endl;
     solve(g0, g1, useful_stuff, incumbent, current, domains, solution_count);
 
     return {incumbent, solution_count};
