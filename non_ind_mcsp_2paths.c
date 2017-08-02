@@ -271,13 +271,14 @@ struct Bidomain {
     {
 //        std::cerr << "Bidomain move constructor" << std::endl;
     }
-    Bidomain& operator=(Bidomain&& a) {
-//        std::cerr << "Bidomain move assignment operator" << std::endl;
-        if (this != &a) {
-            is_adjacent = a.is_adjacent;
-            left_set = std::move(a.left_set);
-            right_set = std::move(a.right_set);
-        }
+    friend void swap(Bidomain& first, Bidomain& second) {
+        using std::swap;
+        swap(first.left_set, second.left_set);
+        swap(first.right_set, second.right_set);
+        swap(first.is_adjacent, second.is_adjacent);
+    }
+    Bidomain& operator=(Bidomain a) {
+        swap(*this, a);
         return *this;
     }
 };
