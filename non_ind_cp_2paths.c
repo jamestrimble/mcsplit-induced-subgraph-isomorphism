@@ -304,8 +304,11 @@ void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
         cout << bd.left_v << " ";
         cout << std::endl;
         cout << "Right  ";
-        for (int w : bd.right_set)
-            cout << w << " ";
+        if (bd.right_len() > 100)
+            cout << "BIG";
+        else
+            for (int w : bd.right_set)
+                cout << w << " ";
         cout << std::endl;
     }
     cout << "\n" << std::endl;
@@ -442,7 +445,6 @@ void solve(const Graph & g0, const Graph & g1,
     if (abort_due_to_timeout)
         return;
 
-    if (arguments.verbose) show(current, domains);
     nodes++;
 
     if (current.size() > incumbent.size())
@@ -464,6 +466,8 @@ void solve(const Graph & g0, const Graph & g1,
                 return a.right_len() < b.right_len() ||
                         (a.right_len()==b.right_len() && a.left_v < b.left_v);
             });
+
+    if (arguments.verbose) show(current, domains);
 
     if (!propagate_alldiff(domains, g0, g1))
         return;
