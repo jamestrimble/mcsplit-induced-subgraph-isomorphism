@@ -348,6 +348,9 @@ bool propagate_alldiff(vector<Bidomain>& domains, const Graph& g0, const Graph& 
         if (ww_to_erase.size())
             bd.right_set.erase_vals(ww_to_erase);
 
+        if (bd.right_len() == 0)
+            return false;
+
         vv0_count += bd.left_len();
 
         for (int w : bd.right_set) {
