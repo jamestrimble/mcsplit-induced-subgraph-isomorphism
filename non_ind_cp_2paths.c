@@ -16,6 +16,8 @@
 #include <argp.h>
 #include <limits.h>
 
+#define MAX_SUPPS 100
+
 using std::vector;
 using std::cout;
 using std::endl;
@@ -521,7 +523,7 @@ NDS calculate_supp_nds(const Graph& g0, const Graph& g1,
         const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p)
 {
     NDS retval;
-    int top = std::min(50, g0.n);  // TODO: move magic 50 somewhere
+    int top = std::min(MAX_SUPPS, g0.n);
     for (int i=0; i<top; i++) {
         retval.push_back({vector<vector<int>>(g0.n), vector<vector<int>>(g1.n)});
         auto& p = retval.back();
@@ -597,17 +599,31 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
 
-    vector<int> g0_deg_sorted = g0_deg;
-    vector<int> g1_deg_sorted = g1_deg;
-    std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
-    std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
-    for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
-        if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
-            return {{}, 0};
-        }
-    }
+//    vector<int> g0_deg_sorted = g0_deg;
+//    vector<int> g1_deg_sorted = g1_deg;
+//    std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
+//    std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
+//    for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
+//        if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
+//            return {{}, 0};
+//        }
+//    }
 
     NDS supp_nds = calculate_supp_nds(g0, g1, g0_2p, g1_2p);
+
+    for (auto& p : supp_nds) {
+        vector<int> g0_deg_sorted;
+        vector<int> g1_deg_sorted;
+        for (auto& a : p.first) g0_deg_sorted.push_back(a.size());
+        for (auto& a : p.second) g1_deg_sorted.push_back(a.size());
+        std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
+        std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
+        for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
+            if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
+                return {{}, 0};
+            }
+        }
+    }
 
     auto domains = vector<Bidomain> {};
 
