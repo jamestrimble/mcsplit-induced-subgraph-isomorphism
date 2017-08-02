@@ -16,7 +16,7 @@
 #include <argp.h>
 #include <limits.h>
 
-#define MAX_SUPPS 100
+#define MAX_SUPPS 25
 
 using std::vector;
 using std::cout;
