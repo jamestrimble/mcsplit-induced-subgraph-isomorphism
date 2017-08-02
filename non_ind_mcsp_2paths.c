@@ -150,95 +150,102 @@ unsigned long long nodes{ 0 };
 /*******************************************************************************
 *******************************************************************************/
 
-#define SMALL_ARR_SZ 12
+#define POOL_SIZE (1 << 17)
+
+struct Pool {
+    int num_chunks_outstanding;
+    int *vals;
+    bool active_for_allocation;
+    Pool() : num_chunks_outstanding(0), active_for_allocation(true) {
+        vals = new int[POOL_SIZE];
+    }
+    ~Pool() {
+        delete[] vals;
+    }
+};
+
+struct PoolChunk {
+    Pool *pool;
+    int *vals;
+    void release() {
+        pool->num_chunks_outstanding--;
+        if (!pool->num_chunks_outstanding && !pool->active_for_allocation)
+            delete pool;
+    }
+};
+
+class PoolAllocator {
+    Pool *pool;
+    int num_used;
+public:
+    PoolAllocator() : num_used(0) {
+        pool = new Pool();
+    }
+    PoolChunk get_chunk(int size) {
+        if (num_used + size > POOL_SIZE) {
+            pool->active_for_allocation = false;
+            pool = new Pool();
+            num_used = 0;
+        }
+        int *start = &pool->vals[num_used];
+        pool->num_chunks_outstanding++;
+        num_used += size;
+        return { pool, start };
+    }
+};
+
+PoolAllocator pool_allocator;
+
+/*******************************************************************************
+*******************************************************************************/
+
 class IntVec {
-    int small_arr[SMALL_ARR_SZ];
     int sz;
     int max_capacity;
-    int *vals;
+    PoolChunk pool_chunk;
 public:
-    IntVec(int max_capacity) : sz(0), max_capacity(max_capacity), vals(small_arr) {}
-    ~IntVec() { if (sz > SMALL_ARR_SZ) delete[] vals; }
-    IntVec(const IntVec& a) : sz(0), max_capacity(a.max_capacity), vals(small_arr) {
+    IntVec(int max_capacity) : sz(0), max_capacity(max_capacity), pool_chunk(pool_allocator.get_chunk(max_capacity)) {}
+    ~IntVec() {
+        pool_chunk.release();
+    }
+    IntVec(const IntVec& a) : sz(0), max_capacity(a.max_capacity), pool_chunk(pool_allocator.get_chunk(a.max_capacity)) {
         std::cerr << "IntVec copy constructor" << std::endl;
         // TODO: make this more efficient
         for (const int x : a)
             push_back(x);
     }
-    IntVec& operator=(const IntVec& a) {
-        sz = a.sz;
-        max_capacity = a.max_capacity;
-        if (sz > SMALL_ARR_SZ) {
-            vals = new int[max_capacity];
-        } else {
-            vals = small_arr;
-        }
-        for (int i=0; i<sz; i++)
-            vals[i] = a.vals[i];
+    friend void swap(IntVec& first, IntVec& second) {
+        using std::swap;
+        swap(first.sz, second.sz);
+        swap(first.max_capacity, second.max_capacity);
+        swap(first.pool_chunk, second.pool_chunk);
+    }
+    IntVec& operator=(IntVec a) {
+        swap(*this, a);
         return *this;
     }
-    IntVec(IntVec&& a) : sz(a.sz), max_capacity(a.max_capacity) {
-//        std::cerr << "IntVec move constructor" << std::endl;
-        if (sz > SMALL_ARR_SZ) {
-            vals = a.vals;
-            a.vals = nullptr;
-            a.sz = 0;
-        } else {
-            for (int i=0; i<sz; i++)
-                small_arr[i] = a.small_arr[i];
-            vals = small_arr;
-        }
-    }
-    IntVec& operator=(IntVec&& a) {
-//        std::cerr << "IntVec move assignment operator" << std::endl;
-        if (this != &a) {
-            max_capacity = a.max_capacity;
-            if (sz > SMALL_ARR_SZ)
-                delete[] vals;
-            sz = a.sz;
-            if (sz > SMALL_ARR_SZ) {
-                vals = a.vals;
-                a.vals = nullptr;
-                a.sz = 0;
-            } else {
-                for (int i=0; i<sz; i++)
-                    small_arr[i] = a.small_arr[i];
-                vals = small_arr;
-            }
-        }
-        return *this;
+    IntVec(IntVec&& a) : IntVec(0) {
+        swap(*this, a);
     }
     void push_back(int x) {
-        if (sz == SMALL_ARR_SZ) {
-            vals = new int[max_capacity];
-            for (int i=0; i<SMALL_ARR_SZ; i++) {
-                vals[i] = small_arr[i];
-            }
-        }
-        vals[sz++] = x;
+        pool_chunk.vals[sz++] = x;
     }
-    int *begin() { return vals; }
-    int *begin() const { return vals; }
-    int *cbegin() const { return vals; }
-    int *end() { return vals + sz; }
-    int *end() const { return vals + sz; }
-    int *cend() const { return vals + sz; }
-    int& operator[](std::size_t idx) { return vals[idx]; }
-    const int& operator[](std::size_t idx) const { return vals[idx]; }
+    int *begin() { return pool_chunk.vals; }
+    int *begin() const { return pool_chunk.vals; }
+    int *cbegin() const { return pool_chunk.vals; }
+    int *end() { return pool_chunk.vals + sz; }
+    int *end() const { return pool_chunk.vals + sz; }
+    int *cend() const { return pool_chunk.vals + sz; }
+    int& operator[](std::size_t idx) { return pool_chunk.vals[idx]; }
+    const int& operator[](std::size_t idx) const { return pool_chunk.vals[idx]; }
     int size() const { return sz; }
     void erase_vals(vector<unsigned char>& vals_to_erase) {
         int k=0;
         for (int i=0; i<sz; i++) {
-            if (!vals_to_erase[vals[i]]) {
-                vals[k] = vals[i];
+            if (!vals_to_erase[pool_chunk.vals[i]]) {
+                pool_chunk.vals[k] = pool_chunk.vals[i];
                 ++k;
             }
-        }
-        if (k <= SMALL_ARR_SZ && sz > SMALL_ARR_SZ) {
-            for (int i=0; i<k; i++)
-                small_arr[i] = vals[i];
-            delete[] vals;
-            vals = small_arr;
         }
         sz = k;
     }
