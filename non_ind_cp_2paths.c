@@ -496,6 +496,14 @@ vector<vector<int>> count_2paths(const Graph & g)
             }
         }
     }
+//    for (int i=0; i<g.n; i++) {
+//        for (int j=0; j<g.n; j++) {
+//            cout << num_2paths[i][j] << " ";
+//        }
+//        cout << endl;
+//    }
+//    cout << endl;
+//    cout << endl;
     return num_2paths;
 }
 
@@ -505,6 +513,45 @@ vector<int> calculate_degrees(const Graph & g) {
         for (int w=0; w<g.n; w++)
             if (g.adjmat[v][w]) degree[v]++;
     return degree;
+}
+
+vector<std::pair<vector<int>, vector<int>>> calculate_supp_degrees(const Graph& g0,
+        const Graph& g1, const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p) {
+    vector<std::pair<vector<int>, vector<int>>> retval;
+    for (int i=0; i<g0.n; i++) {
+        retval.push_back({vector<int>(g0.n), vector<int>(g1.n)});
+        auto& p = retval.back();
+        if (i==0) {
+            // degrees in graphs
+            for (int v=0; v<g0.n; v++)
+                for (int w=0; w<g0.n; w++)
+                    if (g0.adjmat[v][w])
+                        p.first[v]++;
+            for (int v=0; v<g1.n; v++)
+                for (int w=0; w<g1.n; w++)
+                    if (g1.adjmat[v][w])
+                        p.second[v]++;
+        } else {
+            // degrees in supp graphs
+            for (int v=0; v<g0.n; v++)
+                for (int w=0; w<g0.n; w++)
+                    if (g0_2p[v][w] >= i)
+                        p.first[v]++;
+            for (int v=0; v<g1.n; v++)
+                for (int w=0; w<g1.n; w++)
+                    if (g1_2p[v][w] >= i)
+                        p.second[v]++;
+        }
+    }
+    return retval;
+}
+
+bool val_ok_by_supp_degrees(int v, int w, vector<std::pair<vector<int>, vector<int>>>& supp_degrees)
+{
+    for (auto& p : supp_degrees)
+        if (p.first[v] > p.second[w])
+            return false;
+    return true;
 }
 
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
@@ -526,6 +573,8 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
         }
     }
 
+    vector<std::pair<vector<int>, vector<int>>> supp_degs = calculate_supp_degrees(g0, g1, g0_2p, g1_2p);
+
     auto domains = vector<Bidomain> {};
 
     std::set<unsigned int> left_labels;
@@ -541,12 +590,11 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 
     for (int v=0; v<g0.n; v++) {
         unsigned int label = g0.label[v];
-        int left_deg = g0_deg[v];
 
         IntVec right_set(g1.n);
 
         for (int i=0; i<g1.n; i++)
-            if (g1.label[i]==label && g1_deg[i]>=left_deg)
+            if (g1.label[i]==label && val_ok_by_supp_degrees(v, i, supp_degs)/*g1_deg[i]>=g0_deg[v]*/)
                 right_set.push_back(i);
 
         if (!right_set.size())
