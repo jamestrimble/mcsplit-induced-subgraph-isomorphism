@@ -499,12 +499,6 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
             new_d.push_back({std::move(left_with_edge), std::move(right_with_edge), true});
     }
 
-    std::sort(new_d.begin(), new_d.end(),
-            [](const Bidomain& a, const Bidomain& b) {
-                return a.right_len() < b.right_len() ||
-                        (a.right_len()==b.right_len() && a.left_set[0] < b.left_set[0]);
-            });
-
     return new_d;
 }
 
@@ -532,6 +526,12 @@ void solve(const Graph & g0, const Graph & g1,
 
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
+
+    std::sort(domains.begin(), domains.end(),
+            [](const Bidomain& a, const Bidomain& b) {
+                return a.right_len() < b.right_len() ||
+                        (a.right_len()==b.right_len() && a.left_set[0] < b.left_set[0]);
+            });
 
     if (!propagate_alldiff(domains, g0, g1))
         return;
