@@ -165,8 +165,8 @@ struct Pool {
 };
 
 struct PoolChunk {
-    Pool *pool;
     int *vals;
+    Pool *pool;
     void release() {
         pool->num_chunks_outstanding--;
         if (!pool->num_chunks_outstanding && !pool->active_for_allocation)
@@ -190,7 +190,7 @@ public:
         int *start = &pool->vals[num_used];
         pool->num_chunks_outstanding++;
         num_used += size;
-        return { pool, start };
+        return { start, pool };
     }
 };
 
@@ -200,15 +200,15 @@ PoolAllocator pool_allocator;
 *******************************************************************************/
 
 class IntVec {
+    PoolChunk pool_chunk;
     int sz;
     int max_capacity;
-    PoolChunk pool_chunk;
 public:
-    IntVec(int max_capacity) : sz(0), max_capacity(max_capacity), pool_chunk(pool_allocator.get_chunk(max_capacity)) {}
+    IntVec(int max_capacity) : pool_chunk(pool_allocator.get_chunk(max_capacity)), sz(0), max_capacity(max_capacity) {}
     ~IntVec() {
         pool_chunk.release();
     }
-    IntVec(const IntVec& a) : sz(0), max_capacity(a.max_capacity), pool_chunk(pool_allocator.get_chunk(a.max_capacity)) {
+    IntVec(const IntVec& a) : pool_chunk(pool_allocator.get_chunk(a.max_capacity)), sz(0), max_capacity(a.max_capacity) {
         std::cerr << "IntVec copy constructor" << std::endl;
         // TODO: make this more efficient
         for (const int x : a)
@@ -217,7 +217,6 @@ public:
     friend void swap(IntVec& first, IntVec& second) {
         using std::swap;
         swap(first.sz, second.sz);
-        swap(first.max_capacity, second.max_capacity);
         swap(first.pool_chunk, second.pool_chunk);
     }
     IntVec& operator=(IntVec a) {
@@ -249,7 +248,6 @@ public:
         }
         sz = k;
     }
-    int get_max_capacity() const { return max_capacity; }
 };
 
 struct VtxPair {
