@@ -334,15 +334,6 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
     return true;
 }
 
-int calc_bound(const vector<Bidomain>& domains)
-{
-    int bound = 0;
-    for (const Bidomain &bd : domains) {
-        bound += std::min(bd.left_len(), bd.right_len());
-    }
-    return bound;
-}
-
 // Returns false if we can backtrack
 bool propagate_alldiff(vector<Bidomain>& domains, const Graph& g0, const Graph& g1)
 {
@@ -533,10 +524,10 @@ void solve(const Graph & g0, const Graph & g1,
         return;
     }
 
-    if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
+    if (!domains.size())
         return;
 
-    if ((int)current.size() + calc_bound(domains) < g0.n)
+    if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
     if (!propagate_alldiff(domains, g0, g1))
@@ -641,7 +632,10 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
                 if (g1.label[i]==label && (is_isolated || g1_deg[i]>0) && g1_deg[i]>=left_min_deg)
                     right_set.push_back(i);
 
-            if (left_set.size() && right_set.size())
+            if (left_set.size() > right_set.size())
+                return {{}, 0};
+
+            if (left_set.size())
                 domains.push_back({std::move(left_set), std::move(right_set), false});
         }
     }
