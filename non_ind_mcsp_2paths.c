@@ -16,9 +16,13 @@
 #include <argp.h>
 #include <limits.h>
 
+#define MAX_SUPPS 25
+
 using std::vector;
 using std::cout;
 using std::endl;
+
+typedef vector<std::pair<vector<vector<int>>, vector<vector<int>>>> NDS;
 
 static void fail(std::string msg) {
     std::cerr << msg << std::endl;
@@ -288,6 +292,7 @@ struct UsefulStuff {
     vector<int> g1_deg;
     vector<vector<int>> g0_2p;
     vector<vector<int>> g1_2p;
+    NDS supp_nds;
 };
 
 void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
@@ -380,6 +385,25 @@ bool assignment_impossible_by_2path_count(int v, int w, const vector<VtxPair>& c
     return false;
 }
 
+bool val_ok_by_supp_nds(int v, int w, const NDS& supp_nds)
+{
+    for (auto& p : supp_nds) {
+        unsigned sz = p.first[v].size();
+        if (sz > p.second[w].size())
+            return false;
+        if (sz > 0) {
+            if (p.first[v][0] > p.second[w][0])
+                return false;
+            if (p.first[v][sz-1] > p.second[w][sz-1])
+                return false;
+        }
+//        for (int i=0; i<(int)p.first[v].size(); i++)
+//            if (p.first[v][i] > p.second[w][i])
+//                return false;
+    }
+    return true;
+}
+
 // Returns a pair, whose first value is the min domain size, and whose second value is a tie-breaker
 // giving the lowest vertex index of a vertex whose domain size is minimal
 std::pair<int, int> bidomain_score(
@@ -393,7 +417,8 @@ std::pair<int, int> bidomain_score(
         auto vtx_score = std::make_pair(0, v);
         for (int w : bd.right_set) {
             if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
-                    !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
+                    !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p) &&
+                    val_ok_by_supp_nds(v, w, useful_stuff.supp_nds)) {
                 vtx_score.first++;
                 if (vtx_score > best)
                     break;
@@ -552,7 +577,8 @@ void solve(const Graph & g0, const Graph & g1,
         int w = bd.right_set[i];
 
         if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
-                !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
+                !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p) &&
+                val_ok_by_supp_nds(v, w, useful_stuff.supp_nds)) {
             auto new_domains = filter_domains(domains, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
             solve(g0, g1, useful_stuff, incumbent, current, new_domains, solution_count);
@@ -587,6 +613,74 @@ vector<int> calculate_degrees(const Graph & g) {
     return degree;
 }
 
+NDS calculate_supp_nds(const Graph& g0, const Graph& g1,
+        const vector<vector<int>>& g0_2p, const vector<vector<int>>& g1_2p)
+{
+    NDS retval;
+    int top = std::min(MAX_SUPPS, g0.n);
+    for (int i=0; i<top; i++) {
+        retval.push_back({vector<vector<int>>(g0.n), vector<vector<int>>(g1.n)});
+        auto& p = retval.back();
+        std::vector<int> g0_deg(g0.n);
+        std::vector<int> g1_deg(g1.n);
+        if (i==0) {
+            // degrees in graphs
+            for (int v=0; v<g0.n; v++)
+                for (int w=0; w<g0.n; w++)
+                    if (g0.adjmat[v][w])
+                        g0_deg[v]++;
+            for (int v=0; v<g1.n; v++)
+                for (int w=0; w<g1.n; w++)
+                    if (g1.adjmat[v][w])
+                        g1_deg[v]++;
+            for (int v=0; v<g0.n; v++) {
+                for (int w=0; w<g0.n; w++)
+                    if (g0.adjmat[v][w])
+                        p.first[v].push_back(g0_deg[w]);
+                std::sort(p.first[v].begin(), p.first[v].end(), std::greater<int>());
+            }
+            for (int v=0; v<g1.n; v++) {
+                for (int w=0; w<g1.n; w++)
+                    if (g1.adjmat[v][w])
+                        p.second[v].push_back(g1_deg[w]);
+                std::sort(p.second[v].begin(), p.second[v].end(), std::greater<int>());
+            }
+        } else {
+            // degrees in supp graphs
+            for (int v=0; v<g0.n; v++)
+                for (int w=0; w<g0.n; w++)
+                    if (g0_2p[v][w] >= i)
+                        g0_deg[v]++;
+            for (int v=0; v<g1.n; v++)
+                for (int w=0; w<g1.n; w++)
+                    if (g1_2p[v][w] >= i)
+                        g1_deg[v]++;
+            for (int v=0; v<g0.n; v++) {
+                for (int w=0; w<g0.n; w++)
+                    if (g0_2p[v][w] >= i)
+                        p.first[v].push_back(g0_deg[w]);
+                std::sort(p.first[v].begin(), p.first[v].end(), std::greater<int>());
+            }
+            for (int v=0; v<g1.n; v++) {
+                for (int w=0; w<g1.n; w++)
+                    if (g1_2p[v][w] >= i)
+                        p.second[v].push_back(g1_deg[w]);
+                std::sort(p.second[v].begin(), p.second[v].end(), std::greater<int>());
+            }
+        }
+        if (i>5) i+=3;  // Fewer supplementals, to speed things up
+    }
+    return retval;
+}
+
+bool compatible_with_at_least_one_v(const IntVec& left_set, int w, NDS& supp_nds)
+{
+    for (int v : left_set)
+        if (val_ok_by_supp_nds(v, w, supp_nds))
+            return true;
+    return false;
+}
+
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
 std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 {
@@ -596,13 +690,19 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
 
-    vector<int> g0_deg_sorted = g0_deg;
-    vector<int> g1_deg_sorted = g1_deg;
-    std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
-    std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
-    for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
-        if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
-            return {{}, 0};
+    NDS supp_nds = calculate_supp_nds(g0, g1, g0_2p, g1_2p);
+
+    for (auto& p : supp_nds) {
+        vector<int> g0_deg_sorted;
+        vector<int> g1_deg_sorted;
+        for (auto& a : p.first) g0_deg_sorted.push_back(a.size());
+        for (auto& a : p.second) g1_deg_sorted.push_back(a.size());
+        std::sort(g0_deg_sorted.begin(), g0_deg_sorted.end(), std::greater<int>());
+        std::sort(g1_deg_sorted.begin(), g1_deg_sorted.end(), std::greater<int>());
+        for (int i=0; i<(int)g0_deg_sorted.size(); i++) {
+            if (g1_deg_sorted[i] < g0_deg_sorted[i]) {
+                return {{}, 0};
+            }
         }
     }
 
@@ -619,38 +719,40 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
                           std::end(right_labels),
                           std::inserter(labels, std::begin(labels)));
 
-    for (int is_isolated=0; is_isolated<=1; is_isolated++) {
-        // Create a bidomain for each label that appears in both graphs
-        for (unsigned int label : labels) {
-            IntVec left_set(g0.n);
-            IntVec right_set(g1.n);
+    int left_set_sizes_total = 0;
 
-            int left_min_deg = INT_MAX;
-            for (int i=0; i<g0.n; i++) {
-                if (g0.label[i]==label && is_isolated==(g0_deg[i]==0)) {
-                    left_set.push_back(i);
-                    int deg = g0_deg[i];
-                    if (deg < left_min_deg)
-                        left_min_deg = deg;
-                }
+    // Create a bidomain for each label that appears in both graphs
+    for (unsigned int label : labels) {
+        IntVec left_set(g0.n);
+        IntVec right_set(g1.n);
+
+        for (int i=0; i<g0.n; i++) {
+            if (g0.label[i]==label) {
+                left_set.push_back(i);
             }
-            for (int i=0; i<g1.n; i++)
-                if (g1.label[i]==label && (is_isolated || g1_deg[i]>0) && g1_deg[i]>=left_min_deg)
-                    right_set.push_back(i);
-
-            if (left_set.size() > right_set.size())
-                return {{}, 0};
-
-            if (left_set.size())
-                domains.push_back({std::move(left_set), std::move(right_set), false});
         }
+        for (int i=0; i<g1.n; i++)
+            if (g1.label[i]==label && compatible_with_at_least_one_v(left_set, i, supp_nds))
+                right_set.push_back(i);
+
+        if (left_set.size() > right_set.size())
+            return {{}, 0};
+
+        left_set_sizes_total += left_set.size();
+
+        if (left_set.size())
+            domains.push_back({std::move(left_set), std::move(right_set), false});
     }
+
+
+    if (left_set_sizes_total < g0.n)
+        return {{}, 0};
 
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
 
-    UsefulStuff useful_stuff = {std::move(g0_deg), std::move(g1_deg), std::move(g0_2p), std::move(g1_2p)};
+    UsefulStuff useful_stuff = {std::move(g0_deg), std::move(g1_deg), std::move(g0_2p), std::move(g1_2p), std::move(supp_nds)};
     solve(g0, g1, useful_stuff, incumbent, current, domains, solution_count);
 
     return {incumbent, solution_count};
