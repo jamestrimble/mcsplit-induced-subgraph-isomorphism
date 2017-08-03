@@ -16,7 +16,7 @@
 #include <argp.h>
 #include <limits.h>
 
-#define MAX_SUPPS 25
+#define MAX_SUPPS 50
 
 using std::vector;
 using std::cout;
@@ -288,11 +288,9 @@ struct Bidomain {
 };
 
 struct UsefulStuff {
-    vector<int> g0_deg;
-    vector<int> g1_deg;
     vector<vector<int>> g0_2p;
     vector<vector<int>> g1_2p;
-    NDS supp_nds;
+    vector<vector<bool>> initial_domains;
 };
 
 void show(const vector<VtxPair>& current, const vector<Bidomain> &domains)
@@ -391,15 +389,9 @@ bool val_ok_by_supp_nds(int v, int w, const NDS& supp_nds)
         unsigned sz = p.first[v].size();
         if (sz > p.second[w].size())
             return false;
-        if (sz > 0) {
-            if (p.first[v][0] > p.second[w][0])
+        for (int i=0; i<(int)p.first[v].size(); i++)
+            if (p.first[v][i] > p.second[w][i])
                 return false;
-            if (p.first[v][sz-1] > p.second[w][sz-1])
-                return false;
-        }
-//        for (int i=0; i<(int)p.first[v].size(); i++)
-//            if (p.first[v][i] > p.second[w][i])
-//                return false;
     }
     return true;
 }
@@ -416,9 +408,8 @@ std::pair<int, int> bidomain_score(
     for (int v : bd.left_set) {
         auto vtx_score = std::make_pair(0, v);
         for (int w : bd.right_set) {
-            if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
-                    !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p) &&
-                    val_ok_by_supp_nds(v, w, useful_stuff.supp_nds)) {
+            if (useful_stuff.initial_domains[v][w] &&
+                    !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
                 vtx_score.first++;
                 if (vtx_score > best)
                     break;
@@ -577,9 +568,8 @@ void solve(const Graph & g0, const Graph & g1,
     for (int i=0; i<bd.right_len(); i++) {
         int w = bd.right_set[i];
 
-        if (useful_stuff.g0_deg[v] <= useful_stuff.g1_deg[w] &&
-                !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p) &&
-                val_ok_by_supp_nds(v, w, useful_stuff.supp_nds)) {
+        if (useful_stuff.initial_domains[v][w] &&
+                !assignment_impossible_by_2path_count(v, w, current, useful_stuff.g0_2p, useful_stuff.g1_2p)) {
             auto new_domains = filter_domains(domains, g0, g1, v, w);
             current.push_back(VtxPair(v, w));
             solve(g0, g1, useful_stuff, incumbent, current, new_domains, solution_count);
@@ -669,7 +659,7 @@ NDS calculate_supp_nds(const Graph& g0, const Graph& g1,
                 std::sort(p.second[v].begin(), p.second[v].end(), std::greater<int>());
             }
         }
-        if (i>5) i+=3;  // Fewer supplementals, to speed things up
+        if (i>10) i+=4;  // speed things up
     }
     return retval;
 }
@@ -753,7 +743,15 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
     vector<VtxPair> current;
     long long solution_count = 0;
 
-    UsefulStuff useful_stuff = {std::move(g0_deg), std::move(g1_deg), std::move(g0_2p), std::move(g1_2p), std::move(supp_nds)};
+    vector<vector<bool>> initial_domains(g0.n);
+    for (int i=0; i<g0.n; i++) {
+        initial_domains[i].reserve(g1.n);
+        for (int j=0; j<g1.n; j++) {
+            initial_domains[i].push_back(val_ok_by_supp_nds(i, j, supp_nds));
+        }
+    }
+
+    UsefulStuff useful_stuff = {std::move(g0_2p), std::move(g1_2p), std::move(initial_domains)};
     solve(g0, g1, useful_stuff, incumbent, current, domains, solution_count);
 
     return {incumbent, solution_count};
