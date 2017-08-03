@@ -452,70 +452,39 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d,
     auto& w_adjrow = g1.adjmat[w];
 
     for (const Bidomain& old_bd : d) {
-        // left_with_edge is the set of vertices (not including v) with edges to v
-        IntVec left_with_edge(old_bd.left_set.size());
-        // left_without_edge is the set of vertices (not including v) without any edges to v
-        IntVec left_without_edge(old_bd.left_set.size());
+        if (old_bd.left_len()==1 && old_bd.left_set[0]==v)
+            continue;
+
+        IntVec lefts[] = {
+                    IntVec(old_bd.left_set.size()),
+                    IntVec(old_bd.left_set.size())
+                };
         for (int u : old_bd.left_set) {
             if (u != v) {
-                if (v_adjrow[u]) {
-                    left_with_edge.push_back(u);
-                } else {
-                    left_without_edge.push_back(u);
-                }
+                lefts[v_adjrow[u]!=0].push_back(u);
             }
         }
 
-        // right_with_edge is the set of vertices (not including w) with edges to w
-        IntVec right_with_edge(old_bd.right_set.size());
-        // right_without_w is the right set with w removed
-        IntVec right_without_w(old_bd.right_set.size());
-
-        // The next bit is could be done more simply at the cost of a little bit of efficiency;
-        // I've tried to reduce the number of checks of whether u == w
-        if (left_without_edge.size() && left_with_edge.size()) {
-            int *p;
-            int *end = old_bd.right_set.end();
-            for (p=old_bd.right_set.begin(); p<end; p++) {
-                int u = *p;
-                if (u == w) break;
-                right_without_w.push_back(u);
+        IntVec rights[] = {
+                    IntVec(old_bd.right_set.size()),
+                    IntVec(old_bd.right_set.size())
+                };
+        for (int u : old_bd.right_set) {
+            if (u != w) {
+                rights[0].push_back(u);
                 if (w_adjrow[u])
-                    right_with_edge.push_back(u);
+                    rights[1].push_back(u);
             }
-            p++;
-            for (; p<end; p++) {
-                int u = *p;
-                right_without_w.push_back(u);
-                if (w_adjrow[u])
-                    right_with_edge.push_back(u);
-            }
-        } else if (left_without_edge.size()) {
-            int *p;
-            int *end = old_bd.right_set.end();
-            for (p=old_bd.right_set.begin(); p<end; p++) {
-                int u = *p;
-                if (u == w) break;
-                right_without_w.push_back(*p);
-            }
-            p++;
-            for (; p<end; p++) {
-                right_without_w.push_back(*p);
-            }
-        } else if (left_with_edge.size()) {
-            for (int u : old_bd.right_set)
-                if (w_adjrow[u])
-                    right_with_edge.push_back(u);
         }
 
-        if ((left_without_edge.size() > right_without_w.size()) || (left_with_edge.size() > right_with_edge.size())) {
-            // Stop early if we know that there are vertices in the first graph that can't be matched
-            return {};
+        for (int i=0; i<=1; i++) {
+            if (lefts[i].size() > rights[i].size()) {
+                // Stop early if we know that there are vertices in the first graph that can't be matched
+                return {};
+            }
+            if (lefts[i].size())
+                new_d.push_back({std::move(lefts[i]), std::move(rights[i]), old_bd.is_adjacent || i});
         }
-        if (left_without_edge.size() && right_without_w.size())
-            new_d.push_back({std::move(left_without_edge), std::move(right_without_w), old_bd.is_adjacent});
-        if (left_with_edge.size() && right_with_edge.size())
-            new_d.push_back({std::move(left_with_edge), std::move(right_with_edge), true});
     }
 
     return new_d;
