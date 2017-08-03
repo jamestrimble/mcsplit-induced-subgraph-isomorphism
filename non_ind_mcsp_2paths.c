@@ -233,6 +233,12 @@ public:
     void push_back(int x) {
         pool_chunk.vals[sz++] = x;
     }
+    void pop_back() {
+        sz--;
+    }
+    int& back() const {
+        return pool_chunk.vals[sz-1];
+    }
     int *begin() { return pool_chunk.vals; }
     int *begin() const { return pool_chunk.vals; }
     int *cbegin() const { return pool_chunk.vals; }
@@ -251,6 +257,17 @@ public:
             }
         }
         sz = k;
+    }
+    void merge(const IntVec& other, int max_val) {
+        vector<unsigned char> val_present(max_val+1);
+        for (int x : *this)
+            val_present[x] = true;
+        for (int x : other)
+            val_present[x] = true;
+        sz = 0;
+        for (int i=0; i<=max_val; i++)
+            if (val_present[i])
+                push_back(i);
     }
 };
 
@@ -633,11 +650,18 @@ NDS calculate_supp_nds(const Graph& g0, const Graph& g1,
     return retval;
 }
 
-bool compatible_with_at_least_one_v(const IntVec& left_set, int w, NDS& supp_nds)
+bool compare_IntVecs(const IntVec& a, const IntVec& b)
 {
-    for (int v : left_set)
-        if (val_ok_by_supp_nds(v, w, supp_nds))
+    if (a.size() < b.size())
+        return true;
+    if (a.size() > b.size())
+        return false;
+    for (int i=0; i<(int)a.size(); i++) {
+        if (a[i] < b[i]) 
             return true;
+        if (a[i] > b[i]) 
+            return false;
+    }
     return false;
 }
 
@@ -668,31 +692,28 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 
     auto domains = vector<Bidomain> {};
 
-    std::set<unsigned int> left_labels;
-    std::set<unsigned int> right_labels;
-    for (unsigned int label : g0.label) left_labels.insert(label);
-    for (unsigned int label : g1.label) right_labels.insert(label);
-    std::set<unsigned int> labels;  // labels that appear in both graphs
-    std::set_intersection(std::begin(left_labels),
-                          std::end(left_labels),
-                          std::begin(right_labels),
-                          std::end(right_labels),
-                          std::inserter(labels, std::begin(labels)));
+//    std::set<unsigned int> left_labels;
+//    std::set<unsigned int> right_labels;
+//    for (unsigned int label : g0.label) left_labels.insert(label);
+//    for (unsigned int label : g1.label) right_labels.insert(label);
+//    std::set<unsigned int> labels;  // labels that appear in both graphs
+//    std::set_intersection(std::begin(left_labels),
+//                          std::end(left_labels),
+//                          std::begin(right_labels),
+//                          std::end(right_labels),
+//                          std::inserter(labels, std::begin(labels)));
 
     int left_set_sizes_total = 0;
 
     // Create a bidomain for each label that appears in both graphs
-    for (unsigned int label : labels) {
+    for (int v=0; v<g0.n; v++) {
         IntVec left_set(g0.n);
         IntVec right_set(g1.n);
 
-        for (int i=0; i<g0.n; i++) {
-            if (g0.label[i]==label) {
-                left_set.push_back(i);
-            }
-        }
+        left_set.push_back(v);
+
         for (int i=0; i<g1.n; i++)
-            if (g1.label[i]==label && compatible_with_at_least_one_v(left_set, i, supp_nds))
+            if (g1.label[i]==g0.label[v] && val_ok_by_supp_nds(v, i, supp_nds))
                 right_set.push_back(i);
 
         if (left_set.size() > right_set.size())
@@ -707,6 +728,30 @@ std::pair<vector<VtxPair>, long long> mcs(const Graph & g0, const Graph & g1)
 
     if (left_set_sizes_total < g0.n)
         return {{}, 0};
+
+    std::sort(domains.begin(), domains.end(),
+            [](const Bidomain& a, const Bidomain& b) {return compare_IntVecs(a.right_set, b.right_set);});
+
+    int domain_idx = 0;   // domains to which we should move left-vertices if right-sets are equal
+    for (int i=1; i<g0.n; i++) {
+        if (domains[i].right_len() >= g0.n) {
+            int v = domains[i].left_set.back();
+            domains[i].left_set.pop_back();
+            domains[domain_idx].left_set.push_back(v);
+            domains[domain_idx].right_set.merge(domains[i].right_set, g1.n-1);
+        } else if (compare_IntVecs(domains[i-1].right_set, domains[i].right_set) == 0) {
+            int v = domains[i].left_set.back();
+            domains[i].left_set.pop_back();
+            domains[domain_idx].left_set.push_back(v);
+        } else {
+            domain_idx = i;
+        }
+    }
+
+    std::sort(domains.begin(), domains.end(),
+            [](const Bidomain& a, const Bidomain& b) {return a.left_len() > b.left_len();});
+    while (domains.back().left_len() == 0)
+        domains.pop_back();
 
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
