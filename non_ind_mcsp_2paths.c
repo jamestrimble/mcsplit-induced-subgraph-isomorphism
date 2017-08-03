@@ -538,7 +538,6 @@ void solve(const Graph & g0, const Graph & g1,
     if (abort_due_to_timeout)
         return;
 
-    if (arguments.verbose) show(current, domains);
     nodes++;
 
     if (current.size() > incumbent.size())
@@ -560,6 +559,8 @@ void solve(const Graph & g0, const Graph & g1,
                 return a.right_len() < b.right_len() ||
                         (a.right_len()==b.right_len() && a.left_set[0] < b.left_set[0]);
             });
+
+    if (arguments.verbose) show(current, domains);
 
     if (!propagate_alldiff(domains, g0, g1))
         return;
