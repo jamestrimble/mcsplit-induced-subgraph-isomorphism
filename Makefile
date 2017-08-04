@@ -1,41 +1,23 @@
 CXX := g++
 CXXFLAGS := -O3 -march=native
-PROGRAMS := mcsp mcsp_tighter_bounding mcsp_path_len mcsp_path_len_tighter_bounding mcsp_2paths mcsp_2paths_tighter_bounding mcsp_lazy non_ind_cp_2paths non_ind_mcsp_2paths non_ind_mcsp_2paths_restarts non_ind_mcsp_2paths_restarts_simple_nogoods
+PROGRAMS := mcsp mcsp_path_len mcsp_2paths mcsp_lazy non_ind_cp_2paths non_ind_mcsp_2paths non_ind_mcsp_2paths_with_bells_and_whistles non_ind_mcsp_2paths_restarts non_ind_mcsp_2paths_restarts_simple_nogoods
+TIGHTER_BOUNDING_PROGRAMS := mcsp_tighter_bounding mcsp_path_len_tighter_bounding mcsp_2paths_tighter_bounding
 
-all: $(PROGRAMS)
+all: $(PROGRAMS) $(TIGHTER_BOUNDING_PROGRAMS)
 
-mcsp: mcsp.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp graph.c mcsp.c -pthread
+define PROGRAM_template =
+$(1): $(1).c graph.c graph.h
+	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o $(1) graph.c $(1).c -pthread
+endef
 
-mcsp_tighter_bounding: mcsp.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_tighter_bounding graph.c mcsp.c -pthread -DTIGHTER_BOUNDING
+$(foreach program,$(PROGRAMS),$(eval $(call PROGRAM_template,$(program))))
 
-mcsp_path_len: mcsp_path_len.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_path_len graph.c mcsp_path_len.c -pthread
+define TIGHTER_BOUNDING_PROGRAM_template =
+$(1): $(subst _tighter_bounding,,$(1)).c graph.c graph.h
+	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o $(1) graph.c $(subst _tighter_bounding,,$(1)).c -pthread -DTIGHTER_BOUNDING
+endef
 
-mcsp_path_len_tighter_bounding: mcsp_path_len.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_path_len_tighter_bounding graph.c mcsp_path_len.c -pthread -DTIGHTER_BOUNDING
-
-mcsp_2paths: mcsp_2paths.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_2paths graph.c mcsp_2paths.c -pthread
-
-mcsp_2paths_tighter_bounding: mcsp_2paths.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_2paths_tighter_bounding graph.c mcsp_2paths.c -pthread -DTIGHTER_BOUNDING
-
-mcsp_lazy: mcsp_lazy.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o mcsp_lazy graph.c mcsp_lazy.c -pthread
-
-non_ind_cp_2paths: non_ind_cp_2paths.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_cp_2paths graph.c non_ind_cp_2paths.c -pthread
-
-non_ind_mcsp_2paths: non_ind_mcsp_2paths.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_mcsp_2paths graph.c non_ind_mcsp_2paths.c -pthread
-
-non_ind_mcsp_2paths_restarts: non_ind_mcsp_2paths_restarts.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_mcsp_2paths_restarts graph.c non_ind_mcsp_2paths_restarts.c -pthread
-
-non_ind_mcsp_2paths_restarts_simple_nogoods: non_ind_mcsp_2paths_restarts_simple_nogoods.c graph.c graph.h
-	$(CXX) $(CXXFLAGS) -Wall -std=c++11 -o non_ind_mcsp_2paths_restarts_simple_nogoods graph.c non_ind_mcsp_2paths_restarts_simple_nogoods.c -pthread
+$(foreach program,$(TIGHTER_BOUNDING_PROGRAMS),$(eval $(call TIGHTER_BOUNDING_PROGRAM_template,$(program))))
 
 clean:
 	rm $(PROGRAMS)
