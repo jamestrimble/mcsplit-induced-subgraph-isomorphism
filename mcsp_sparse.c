@@ -377,25 +377,6 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
     return false;
 }
 
-int calc_bound_OLD(const vector<Bidomain>& domains, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int target)
-{
-    int bound = 0;
-    for (const Bidomain &bd : domains) {
-        bound += std::min(bd.left_len, bd.right_len);
-    }
-#ifdef TIGHTER_BOUNDING
-    if (bound < target)
-        return 0;   // bactrack
-    for (const Bidomain &bd : domains) {
-        if (can_backtrack_using_degrees_within_bidomain(bd, left, right, g0, g1)) {
-            return 0;  // backtrack
-        }
-    }
-#endif
-    return bound;
-}
-
 int calc_bound(BDLL & bdll, const Graph & g0, const Graph & g1, int target)
 {
     int bound = 0;
@@ -412,14 +393,6 @@ int calc_bound(BDLL & bdll, const Graph & g0, const Graph & g1, int target)
 //    }
 //#endif
     return bound;
-}
-
-int find_min_value(const vector<int>& arr, int start_idx, int len) {
-    int min_v = INT_MAX;
-    for (int i=0; i<len; i++)
-        if (arr[start_idx + i] < min_v)
-            min_v = arr[start_idx + i];
-    return min_v;
 }
 
 BdIt select_bidomain(BDLL & domains)
@@ -454,45 +427,6 @@ BdIt select_bidomain(BDLL & domains)
         }
     }
     return best;
-}
-
-int select_bidomain_OLD(const vector<Bidomain>& domains, const vector<int> & left)
-{
-    // Select the bidomain with the smallest max(leftsize, rightsize), breaking
-    // ties on the smallest vertex index in the left set
-    int min_size = INT_MAX;
-    int min_tie_breaker = INT_MAX;
-    int best = -1;
-    for (unsigned int i=0; i<domains.size(); i++) {
-        const Bidomain &bd = domains[i];
-        int len = arguments.heuristic == min_max ?
-                std::max(bd.left_len, bd.right_len) :
-                bd.left_len * bd.right_len;
-        if (len < min_size) {
-            min_size = len;
-            min_tie_breaker = find_min_value(left, bd.l, bd.left_len);
-            best = i;
-        } else if (len == min_size) {
-            int tie_breaker = find_min_value(left, bd.l, bd.left_len);
-            if (tie_breaker < min_tie_breaker) {
-                min_tie_breaker = tie_breaker;
-                best = i;
-            }
-        }
-    }
-    return best;
-}
-
-// Returns length of left half of array
-int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int> & adjrow) {
-    int i=0;
-    for (int j=0; j<len; j++) {
-        if (adjrow[all_vv[start+j]]) {
-            std::swap(all_vv[start+i], all_vv[start+j]);
-            i++;
-        }
-    }
-    return i;
 }
 
 std::pair<vector<BdIt>, BDLL> new_filter_domains(
@@ -594,92 +528,6 @@ void unfilter_domains(
         bdll.erase(std::next(bd_it));
         split_bds.pop_back();
     }
-}
-
-// multiway is for directed and/or labelled graphs
-vector<Bidomain> filter_domains(BDLL & bdll, const vector<Bidomain> & d, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
-        bool multiway)
-{
-    vector<Bidomain> new_d;
-    new_d.reserve(d.size());
-    for (const Bidomain &old_bd : d) {
-        int l = old_bd.l;
-        int r = old_bd.r;
-        // After these two partitions, left_len and right_len are the lengths of the
-        // arrays of vertices with edges from v or w (int the directed case, edges
-        // either from or to v or w)
-        int left_len = partition(left, l, old_bd.left_len, g0.adjmat[v]);
-        int right_len = partition(right, r, old_bd.right_len, g1.adjmat[w]);
-        int left_len_noedge = old_bd.left_len - left_len;
-        int right_len_noedge = old_bd.right_len - right_len;
-        if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
-            // Stop early if we know that there are vertices in the first graph that can't be matched
-            // TODO: improve this for the edge-labelled case
-            //return new_d;
-        }
-        if (left_len_noedge && right_len_noedge)
-            new_d.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
-        if (multiway && left_len && right_len) {
-            auto& adjrow_v = g0.adjmat[v];
-            auto& adjrow_w = g1.adjmat[w];
-            auto l_begin = std::begin(left) + l;
-            auto r_begin = std::begin(right) + r;
-            std::sort(l_begin, l_begin+left_len, [&](int a, int b)
-                    { return adjrow_v[a] < adjrow_v[b]; });
-            std::sort(r_begin, r_begin+right_len, [&](int a, int b)
-                    { return adjrow_w[a] < adjrow_w[b]; });
-            int l_top = l + left_len;
-            int r_top = r + right_len;
-            while (l<l_top && r<r_top) {
-                unsigned int left_label = adjrow_v[left[l]];
-                unsigned int right_label = adjrow_w[right[r]];
-                if (left_label < right_label) {
-                    l++;
-                } else if (left_label > right_label) {
-                    r++;
-                } else {
-                    int lmin = l;
-                    int rmin = r;
-                    do { l++; } while (l<l_top && adjrow_v[left[l]]==left_label);
-                    do { r++; } while (r<r_top && adjrow_w[right[r]]==left_label);
-                    new_d.push_back({lmin, rmin, l-lmin, r-rmin, true});
-                }
-            }
-        } else if (left_len && right_len) {
-            new_d.push_back({l, r, left_len, right_len, true});
-        }
-    }
-    return new_d;
-}
-
-// returns the index of the smallest value in arr that is >w.
-// Assumption: such a value exists
-// Assumption: arr contains no duplicates
-// Assumption: arr has no values==INT_MAX
-int index_of_next_smallest(const vector<int>& arr, int start_idx, int len, int w) {
-    int idx = -1;
-    int smallest = INT_MAX;
-    for (int i=0; i<len; i++) {
-        if (arr[start_idx + i]>w && arr[start_idx + i]<smallest) {
-            smallest = arr[start_idx + i];
-            idx = i;
-        }
-    }
-    return idx;
-}
-
-void remove_vtx_from_left_domain(vector<int>& left, Bidomain& bd, int v)
-{
-    int i = 0;
-    while(left[bd.l + i] != v) i++;
-    std::swap(left[bd.l+i], left[bd.l+bd.left_len-1]);
-    bd.left_len--;
-}
-
-void remove_bidomain(vector<Bidomain>& domains, int idx) {
-    domains[idx] = domains[domains.size()-1];
-    domains.pop_back();
 }
 
 void assign(int v, int w,
