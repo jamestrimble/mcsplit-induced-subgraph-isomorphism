@@ -223,6 +223,7 @@ struct NewBidomain {
 // Some temporary storage space
 struct Workspace {
     vector<BdIt> split_bds;
+    std::list<NewBidomain> bd_free_list;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -486,7 +487,13 @@ std::pair<NewBidomain *, BDLL> filter_domains(
     }
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
-        bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
+        if (!workspace.bd_free_list.empty()) {
+            BdIt new_elem = std::prev(workspace.bd_free_list.end());
+            bdll.splice(std::next(bd_it), workspace.bd_free_list, new_elem);
+            *new_elem = {bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false};
+        } else {
+            bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
+        }
 
         // TODO: improve this (make `this_node` unnecessary?)
         std::next(bd_it)->this_node = std::next(bd_it);
@@ -519,6 +526,7 @@ std::pair<NewBidomain *, BDLL> filter_domains(
 }
 
 void unfilter_domains(
+        Workspace & workspace,
         BDLL & bdll,
         vector<Ptrs> & left_ptrs,
         vector<Ptrs> & right_ptrs,
@@ -546,7 +554,8 @@ void unfilter_domains(
         }
         bd_it->l_end = nxt.l_end;
         bd_it->r_end = nxt.r_end;
-        bdll.erase(std::next(bd_it));
+        workspace.bd_free_list.splice(workspace.bd_free_list.end(), bdll, nxt_it);
+        //bdll.erase(std::next(bd_it));
     }
 }
 
@@ -639,7 +648,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 
         current.pop_back();
 
-        unfilter_domains(bdll, left_ptrs, right_ptrs, split_bds_list, deleted_bds, g0, g1);
+        unfilter_domains(workspace, bdll, left_ptrs, right_ptrs, split_bds_list, deleted_bds, g0, g1);
 
         if (!removed_bd_lst.empty()) {
             removed_bd_lst.front().active = true;
