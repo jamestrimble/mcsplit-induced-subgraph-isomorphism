@@ -213,6 +213,9 @@ struct NewBidomain {
             active(true),
             mod_index(INT_MAX)
             { };
+
+    int l_size() const { return l_end - l; }
+    int r_size() const { return r_end - r; }
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -386,7 +389,7 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
     return false;
 }
 
-int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
+int calc_bound_OLD(const vector<Bidomain>& domains, vector<int> & left,
         vector<int> & right, const Graph & g0, const Graph & g1, int target)
 {
     int bound = 0;
@@ -405,6 +408,24 @@ int calc_bound(const vector<Bidomain>& domains, vector<int> & left,
     return bound;
 }
 
+int calc_bound(BDLL & bdll, const Graph & g0, const Graph & g1, int target)
+{
+    int bound = 0;
+    for (const auto & bd : bdll) {
+        bound += std::min(bd.l_size(), bd.r_size());
+    }
+//#ifdef TIGHTER_BOUNDING
+//    if (bound < target)
+//        return 0;   // bactrack
+//    for (const Bidomain &bd : domains) {
+//        if (can_backtrack_using_degrees_within_bidomain(bd, left, right, g0, g1)) {
+//            return 0;  // backtrack
+//        }
+//    }
+//#endif
+    return bound;
+}
+
 int find_min_value(const vector<int>& arr, int start_idx, int len) {
     int min_v = INT_MAX;
     for (int i=0; i<len; i++)
@@ -413,8 +434,41 @@ int find_min_value(const vector<int>& arr, int start_idx, int len) {
     return min_v;
 }
 
-int select_bidomain(const vector<Bidomain>& domains, const vector<int> & left,
-        int current_matching_size)
+BdIt select_bidomain(BDLL & domains)
+{
+    // Select the bidomain with the smallest max(leftsize, rightsize), breaking
+    // ties on the smallest vertex index in the left set
+    int min_size = INT_MAX;
+    for (auto const & bd : domains) {
+        int left_len = bd.l_end - bd.l;
+        int right_len = bd.r_end - bd.r;
+        int len = arguments.heuristic == min_max ?
+                std::max(left_len, right_len) :
+                left_len * right_len;
+        if (len < min_size)
+            min_size = len;
+    }
+    int min_tie_breaker = INT_MAX;
+    BdIt best = domains.end();
+    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=std::next(bd_it)) {
+        auto const & bd = *bd_it;
+        int left_len = bd.l_end - bd.l;
+        int right_len = bd.r_end - bd.r;
+        int len = arguments.heuristic == min_max ?
+                std::max(left_len, right_len) :
+                left_len * right_len;
+        if (len != min_size)
+            continue;
+        int tie_breaker = *std::min_element(bd.l, bd.l_end);
+        if (tie_breaker < min_tie_breaker) {
+            min_tie_breaker = tie_breaker;
+            best = bd_it;
+        }
+    }
+    return best;
+}
+
+int select_bidomain_OLD(const vector<Bidomain>& domains, const vector<int> & left)
 {
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
@@ -694,15 +748,28 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    int bound = current.size() + calc_bound(
-            domains, left, right, g0, g1, g0.n - current.size());
+    //int bound = current.size() + calc_bound_OLD(
+    //        domains, left, right, g0, g1, g0.n - current.size());
+    int bound = current.size() + calc_bound(bdll, g0, g1, g0.n - current.size());
     if (bound < g0.n)
         return;
 
-    int bd_idx = select_bidomain(domains, left, current.size());
+    BdIt _bd = select_bidomain(bdll);
+    int bd_idx = select_bidomain_OLD(domains, left);
+
+    if ((_bd == bdll.end()) != (bd_idx == -1)) {
+        std::cout << "Something went wrong" << std::endl;
+        exit(1);
+    }
+        
+    if (_bd == bdll.end())
+        return;
     if (bd_idx == -1)   // Return if there's nothing left to branch on
         return;
     Bidomain &bd = domains[bd_idx];
+
+    std::vector<int> vv(_bd->l, _bd->l_end);
+    std::sort(vv.begin(), vv.end());
 
     int v = find_min_value(left, bd.l, bd.left_len);
     remove_vtx_from_left_domain(left, domains[bd_idx], v);
