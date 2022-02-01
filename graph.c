@@ -179,3 +179,14 @@ struct Graph readGraph(char* filename, char format, bool directed, bool edge_lab
     else fail("Unknown graph format\n");
     return g;
 }
+
+void make_adj_lists(Graph & g, const std::vector<bool> & active_vertices) {
+    g.adj_lists = std::vector<std::vector<int>>(g.n);
+    for (int i=0; i<g.n; i++) {
+        for (int j=0; j<g.n; j++) {
+            if (g.adjmat[i][j] && active_vertices[j]) {
+                g.adj_lists[i].push_back(j);
+            }
+        }
+    }
+}
