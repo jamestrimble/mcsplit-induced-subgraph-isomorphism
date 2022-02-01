@@ -261,8 +261,7 @@ struct Ptrs
 
 void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, const vector<VtxPair>& current,
-        const BDLL & bdll,
-        const vector<int>& left, const vector<int>& right)
+        const BDLL & bdll)
 {
     cout << "Nodes: " << nodes << std::endl;
     cout << "Length of current assignment: " << current.size() << std::endl;
@@ -431,7 +430,7 @@ BdIt select_bidomain(BDLL & domains)
 
 std::pair<vector<BdIt>, BDLL> new_filter_domains(
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        vector<int> & left, vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
+        const Graph & g0, const Graph & g1, int v, int w,
         bool multiway)
 {
     // TODO: quit early if solution is impossible?
@@ -561,12 +560,12 @@ void unassign(int v,
 void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         vector<VtxPair> & current,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        vector<int> & left, vector<int> & right, long long & solution_count)
+        long long & solution_count)
 {
     if (abort_due_to_timeout)
         return;
 
-    if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, left, right);
+    if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll);
     nodes++;
 
     if (current.size() > incumbent.size()) {
@@ -609,14 +608,12 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
 
         vector<BdIt> split_bds;
         BDLL deleted_bds;
-        tie(split_bds, deleted_bds) = new_filter_domains(bdll, left_ptrs, right_ptrs, left, right, g0, g1, v, w,
+        tie(split_bds, deleted_bds) = new_filter_domains(bdll, left_ptrs, right_ptrs, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
-//        auto new_domains = filter_domains(bdll, domains, left, right, g0, g1, v, w,
-//                arguments.directed || arguments.edge_labelled);
         current.push_back(VtxPair(v, w));
 
-        solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, left, right, solution_count);
+        solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
         current.pop_back();
 
@@ -713,7 +710,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, left, right, solution_count);
+    solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
     return {incumbent, solution_count};
 }
