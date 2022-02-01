@@ -202,6 +202,8 @@ struct NewBidomain {
     bool active;
     unsigned mod_index;
     BdIt reinsertion_point;
+    BdIt this_node;
+    NewBidomain *next_in_split_list;
     NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
             l(l),
             r(r),
@@ -216,6 +218,11 @@ struct NewBidomain {
 
     int l_size() const { return l_end - l; }
     int r_size() const { return r_end - r; }
+};
+
+// Some temporary storage space
+struct Workspace {
+    vector<BdIt> split_bds;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -428,14 +435,19 @@ BdIt select_bidomain(BDLL & domains)
     return best;
 }
 
-std::pair<vector<BdIt>, BDLL> new_filter_domains(
+std::pair<NewBidomain *, BDLL> filter_domains(
+        Workspace & workspace,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, int v, int w,
         bool multiway)
 {
     // TODO: quit early if solution is impossible?
-    vector<BdIt> split_bds;
+    vector<BdIt> & split_bds = workspace.split_bds;
+    split_bds.clear();
+
+    NewBidomain *split_bds_list = nullptr;
     BDLL deleted_bds;
+
     for (int u : g0.adj_lists[v]) {
         auto bd_it = left_ptrs[u].bd_it;
         auto & bd = *bd_it;
@@ -475,6 +487,14 @@ std::pair<vector<BdIt>, BDLL> new_filter_domains(
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
         bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
+
+        // TODO: improve this (make `this_node` unnecessary?)
+        std::next(bd_it)->this_node = std::next(bd_it);
+
+        // Insert the new BD at the head of the linked list of split BDs
+        std::next(bd_it)->next_in_split_list = split_bds_list;
+        split_bds_list = &*std::next(bd_it);
+
         for (It it=bd_it->l_mid; it<bd_it->l_end; it++) {
             left_ptrs[*it].bd_it = std::next(bd_it);
         }
@@ -495,14 +515,14 @@ std::pair<vector<BdIt>, BDLL> new_filter_domains(
             }
         }
     }
-    return {std::move(split_bds), std::move(deleted_bds)};
+    return {split_bds_list, std::move(deleted_bds)};
 }
 
 void unfilter_domains(
         BDLL & bdll,
         vector<Ptrs> & left_ptrs,
         vector<Ptrs> & right_ptrs,
-        vector<BdIt> & split_bds,
+        NewBidomain *split_bds_list,
         BDLL & deleted_bds,
         const Graph & g0,
         const Graph & g1)
@@ -513,9 +533,11 @@ void unfilter_domains(
         bdll.splice(bd.reinsertion_point, deleted_bds, std::prev(deleted_bds.end()));
     }
 
-    while(!split_bds.empty()) {
-        BdIt bd_it = split_bds.back();
-        auto & nxt = *std::next(bd_it);
+    for (NewBidomain *p=split_bds_list; p!=nullptr; p=p->next_in_split_list) {
+        // TODO: better variable names
+        BdIt nxt_it = p->this_node;
+        auto & nxt = *nxt_it;
+        BdIt bd_it = std::prev(nxt_it);
         for (It it=nxt.l; it<nxt.l_end; it++) {
             left_ptrs[*it].bd_it = bd_it;
         }
@@ -525,7 +547,6 @@ void unfilter_domains(
         bd_it->l_end = nxt.l_end;
         bd_it->r_end = nxt.r_end;
         bdll.erase(std::next(bd_it));
-        split_bds.pop_back();
     }
 }
 
@@ -557,7 +578,7 @@ void unassign(int v,
     ++bd.r_end;
 }
 
-void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
+void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         vector<VtxPair> & current,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         long long & solution_count)
@@ -606,18 +627,19 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
             removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
         }
 
-        vector<BdIt> split_bds;
+        NewBidomain *split_bds_list;
         BDLL deleted_bds;
-        tie(split_bds, deleted_bds) = new_filter_domains(bdll, left_ptrs, right_ptrs, g0, g1, v, w,
+        tie(split_bds_list, deleted_bds) = filter_domains(workspace,
+                bdll, left_ptrs, right_ptrs, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
         current.push_back(VtxPair(v, w));
 
-        solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
+        solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
         current.pop_back();
 
-        unfilter_domains(bdll, left_ptrs, right_ptrs, split_bds, deleted_bds, g0, g1);
+        unfilter_domains(bdll, left_ptrs, right_ptrs, split_bds_list, deleted_bds, g0, g1);
 
         if (!removed_bd_lst.empty()) {
             removed_bd_lst.front().active = true;
@@ -691,6 +713,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
                           new_left.begin() + start_l + left_len,
                           new_right.begin() + start_r + right_len,
                           false);
+        std::prev(bdll.end())->this_node = std::prev(bdll.end());
 
         for (int i=0; i<g0.n; i++) {
             if (g0.label[i]==label) {
@@ -710,7 +733,8 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
+    Workspace workspace {};
+    solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
     return {incumbent, solution_count};
 }
