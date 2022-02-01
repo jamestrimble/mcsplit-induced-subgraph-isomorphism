@@ -261,7 +261,7 @@ struct Ptrs
 
 void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, const vector<VtxPair>& current,
-        const BDLL & bdll, const vector<Bidomain> &domains,
+        const BDLL & bdll,
         const vector<int>& left, const vector<int>& right)
 {
     cout << "Nodes: " << nodes << std::endl;
@@ -278,18 +278,6 @@ void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
         std::cout << "Adjacent to " << current.back().w << " in g1: ";
         for (int x : g1.adj_lists[current.back().w]) std::cout << x << " ";
         std::cout << std::endl;
-    }
-    cout << "---------------------" << std::endl;
-    for (unsigned int i=0; i<domains.size(); i++) {
-        struct Bidomain bd = domains[i];
-        cout << "Left  ";
-        for (int j=0; j<bd.left_len; j++)
-            cout << left[bd.l + j] << " ";
-        cout << std::endl;
-        cout << "Right  ";
-        for (int j=0; j<bd.right_len; j++)
-            cout << right[bd.r + j] << " ";
-        cout << std::endl;
     }
     cout << "---------------------" << std::endl;
 //    for (int i=0; i<g0.n; i++) {
@@ -509,8 +497,7 @@ int partition(vector<int>& all_vv, int start, int len, const vector<unsigned int
 
 std::pair<vector<BdIt>, BDLL> new_filter_domains(
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        const vector<Bidomain> & d, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
+        vector<int> & left, vector<int> & right, const Graph & g0, const Graph & g1, int v, int w,
         bool multiway)
 {
     // TODO: quit early if solution is impossible?
@@ -726,13 +713,12 @@ void unassign(int v,
 void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
         vector<VtxPair> & current,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        vector<Bidomain> & domains,
         vector<int> & left, vector<int> & right, long long & solution_count)
 {
     if (abort_due_to_timeout)
         return;
 
-    if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, domains, left, right);
+    if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, left, right);
     nodes++;
 
     if (current.size() > incumbent.size()) {
@@ -748,69 +734,42 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
-    //int bound = current.size() + calc_bound_OLD(
-    //        domains, left, right, g0, g1, g0.n - current.size());
     int bound = current.size() + calc_bound(bdll, g0, g1, g0.n - current.size());
     if (bound < g0.n)
         return;
 
-    BdIt _bd = select_bidomain(bdll);
-    int bd_idx = select_bidomain_OLD(domains, left);
-
-    if ((_bd == bdll.end()) != (bd_idx == -1)) {
-        std::cout << "Something went wrong" << std::endl;
-        exit(1);
-    }
+    BdIt bd_it = select_bidomain(bdll);
         
-    if (_bd == bdll.end())
+    if (bd_it == bdll.end())
         return;
-    if (bd_idx == -1)   // Return if there's nothing left to branch on
-        return;
-    Bidomain &bd = domains[bd_idx];
 
-    std::vector<int> vv(_bd->l, _bd->l_end);
-    std::sort(vv.begin(), vv.end());
+    std::vector<int> ww(bd_it->r, bd_it->r_end);
+    std::sort(ww.begin(), ww.end());
 
-    int v = find_min_value(left, bd.l, bd.left_len);
-    remove_vtx_from_left_domain(left, domains[bd_idx], v);
+    int v = *std::min_element(bd_it->l, bd_it->l_end);
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
-    int w = -1;
-    bd.right_len--;
-    for (int i=0; i<=bd.right_len; i++) {
-        int idx = index_of_next_smallest(right, bd.r, bd.right_len+1, w);
-        w = right[bd.r + idx];
-
-        // swap w to the end of its colour class
-        right[bd.r + idx] = right[bd.r + bd.right_len];
-        right[bd.r + bd.right_len] = w;
-
-////        cout << "BEFORE ASSIGNMENT" << std::endl;
-////        if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, domains, left, right);
+    for (int w : ww) {
         assign(v, w, left_ptrs, right_ptrs);
 
         BDLL removed_bd_lst;
-        if (bd.left_len == 0) {
-            BdIt bd_it = left_ptrs[v].bd_it;
+        if (bd_it->l_size() == 0) {
             bd_it->active = false;
             bd_it->reinsertion_point = std::next(bd_it);
             removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
         }
 
-////        cout << "BEFORE FILTERING" << std::endl;
-////        if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, domains, left, right);
-
         vector<BdIt> split_bds;
         BDLL deleted_bds;
-        tie(split_bds, deleted_bds) = new_filter_domains(bdll, left_ptrs, right_ptrs, domains, left, right, g0, g1, v, w,
+        tie(split_bds, deleted_bds) = new_filter_domains(bdll, left_ptrs, right_ptrs, left, right, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
-        auto new_domains = filter_domains(bdll, domains, left, right, g0, g1, v, w,
-                arguments.directed || arguments.edge_labelled);
+//        auto new_domains = filter_domains(bdll, domains, left, right, g0, g1, v, w,
+//                arguments.directed || arguments.edge_labelled);
         current.push_back(VtxPair(v, w));
-////        cout << "AFTER FILTERING" << std::endl;
-////        if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, new_domains, left, right);
-        solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, new_domains, left, right, solution_count);
+
+        solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, left, right, solution_count);
+
         current.pop_back();
 
         unfilter_domains(bdll, left_ptrs, right_ptrs, split_bds, deleted_bds, g0, g1);
@@ -820,9 +779,6 @@ void solve(const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
             bdll.splice(removed_bd_lst.front().reinsertion_point, removed_bd_lst, removed_bd_lst.begin());
         }
         unassign(v, left_ptrs, right_ptrs);
-
-////        cout << "AFTER unassign()" << std::endl;
-////        if (arguments.verbose) show(left_ptrs, right_ptrs, g0, g1, current, bdll, domains, left, right);
 
         if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
             break;
@@ -909,7 +865,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, domains, left, right, solution_count);
+    solve(g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, left, right, solution_count);
 
     return {incumbent, solution_count};
 }
