@@ -288,9 +288,28 @@ struct BDLL {
 
 // Some temporary storage space
 struct Workspace {
-    // TODO: encapsulate functions for getting / adding free list
     vector<BdIt> split_bds;
+    NewBidomain *get_from_free_list()
+    {
+        if (bd_free_list == nullptr) {
+            bd_memory_pools.push_back(vector<NewBidomain>(100));
+            for (NewBidomain & bd : bd_memory_pools.back()) {
+                bd.next_in_free_list = bd_free_list;
+                bd_free_list = &bd;
+            }
+        }
+        NewBidomain *bd = bd_free_list;
+        bd_free_list = bd->next_in_free_list;
+        return bd;
+    }
+    void add_to_free_list(NewBidomain * bd)
+    {
+        bd->next_in_free_list = bd_free_list;
+        bd_free_list = bd;
+    }
+private:
     NewBidomain *bd_free_list = nullptr;
+    vector<vector<NewBidomain>> bd_memory_pools;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -555,15 +574,7 @@ NewBidomain * filter_domains(
     }
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
-        BdIt new_elem;
-        if (workspace.bd_free_list != nullptr) {
-            new_elem = workspace.bd_free_list;
-            workspace.bd_free_list = new_elem->next_in_free_list;
-            //bdll.splice(std::next(bd_it), workspace.bd_free_list, new_elem);
-        } else {
-            new_elem = new NewBidomain();
-            //bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
-        }
+        BdIt new_elem = workspace.get_from_free_list();
         new_elem->insert_after(bd_it);
         new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
 
@@ -629,8 +640,7 @@ void unfilter_domains(
         p->remove();
         p = p->next_in_split_list;
 
-        nxt.next_in_free_list = workspace.bd_free_list;
-        workspace.bd_free_list = &nxt;
+        workspace.add_to_free_list(&nxt);
         //workspace.bd_free_list.splice(workspace.bd_free_list.end(), bdll, nxt_it);
         //bdll.erase(std::next(bd_it));
     }
@@ -761,6 +771,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<bool> g1_active_vertices(g1.n);
 
     BDLL bdll;
+    Workspace workspace {};
 
     std::set<unsigned int> left_labels;
     std::set<unsigned int> right_labels;
@@ -799,7 +810,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
         int left_len = left.size() - start_l;
         int right_len = right.size() - start_r;
 
-        NewBidomain *new_elem = new NewBidomain();
+        NewBidomain *new_elem = workspace.get_from_free_list();
         new_elem->insert_before(&bdll.head);
         new_elem->initialise(new_left.begin() + start_l,
                           new_right.begin() + start_r,
@@ -825,7 +836,6 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    Workspace workspace {};
     solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
     return {incumbent, solution_count};
