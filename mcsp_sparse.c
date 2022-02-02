@@ -188,11 +188,11 @@ struct NewBidomain {
     bool is_adjacent;
     bool active;
     unsigned mod_index;
-    BdIt reinsertion_point;
     union {
         NewBidomain *next_in_split_list;
         NewBidomain *next_in_free_list;
     };
+    NewBidomain *next_in_deleted_list;
     NewBidomain *prev;
     NewBidomain *next;
 //    NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
@@ -307,7 +307,7 @@ struct Workspace {
         bd->next_in_free_list = bd_free_list;
         bd_free_list = bd;
     }
-private:
+//private:
     NewBidomain *bd_free_list = nullptr;
     vector<vector<NewBidomain>> bd_memory_pools;
 };
@@ -523,9 +523,15 @@ BdIt select_bidomain(BDLL & domains)
     return best;
 }
 
-NewBidomain * filter_domains(
+struct SplitAndDeletedLists {
+    NewBidomain *split_bds_list;
+    NewBidomain *deleted_bds_list;
+    SplitAndDeletedLists(NewBidomain *split_bds_list, NewBidomain *deleted_bds_list)
+        : split_bds_list(split_bds_list), deleted_bds_list(deleted_bds_list) {}
+};
+
+SplitAndDeletedLists filter_domains(
         Workspace & workspace,
-        BDLL & deleted_bds,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, int v, int w,
         bool multiway)
@@ -535,6 +541,7 @@ NewBidomain * filter_domains(
     split_bds.clear();
 
     NewBidomain *split_bds_list = nullptr;
+    NewBidomain *deleted_bds_list = nullptr;
 
     for (int u : g0.filtered_adj_lists[v]) {
         auto bd_it = left_ptrs[u].bd_it;
@@ -572,6 +579,8 @@ NewBidomain * filter_domains(
         right_ptrs[*u_it].vtx_it = u_it;
         --bd.r_mid;
     }
+
+    // Do splits
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
         BdIt new_elem = workspace.get_from_free_list();
@@ -590,20 +599,25 @@ NewBidomain * filter_domains(
         }
         bd_it->l_end = bd_it->l_mid;
         bd_it->r_end = bd_it->r_mid;
-        BdIt bd_its[2] = {bd_it, new_elem};
+    }
+
+    // Do deletions
+    for (auto bd_it : split_bds) {
         for (int i=0; i<2; i++) {
-            BdIt bd_it = bd_its[i];
             // Delete old and new BDs if necessary
             auto & bd = *bd_it;
             if (bd.l == bd.l_end || bd.r == bd.r_end) {
                 bd.active = false;
-                bd.reinsertion_point = bd_it->next;
-                bd_it->move_to_before(deleted_bds.end());
-                //deleted_bds.splice(deleted_bds.end(), bdll, bd_it);
+
+                // add to deleted list
+                bd.remove();
+                bd.next_in_deleted_list = deleted_bds_list;
+                deleted_bds_list = bd_it;
             }
+            bd_it = bd_it->next;
         }
     }
-    return split_bds_list;
+    return {split_bds_list, deleted_bds_list};
 }
 
 void unfilter_domains(
@@ -612,14 +626,16 @@ void unfilter_domains(
         vector<Ptrs> & left_ptrs,
         vector<Ptrs> & right_ptrs,
         NewBidomain *split_bds_list,
-        BDLL & deleted_bds,
+        NewBidomain *deleted_bds,
         const Graph & g0,
         const Graph & g1)
 {
-    while (!deleted_bds.empty()) {
-        NewBidomain & bd = deleted_bds.back();
+    while (deleted_bds != nullptr) {
+        NewBidomain & bd = *deleted_bds;
         bd.active = true;
-        deleted_bds.back().move_to_before(bd.reinsertion_point);
+        bd.reinsert();
+        deleted_bds = bd.next_in_deleted_list;
+        //deleted_bds.back().move_to_before(bd.reinsertion_point);
         //bdll.splice(bd.reinsertion_point, deleted_bds, std::prev(deleted_bds.end()));
     }
 
@@ -730,8 +746,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         //    //removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
         //}
 
-        BDLL deleted_bds;
-        NewBidomain *split_bds_list = filter_domains(workspace, deleted_bds,
+        auto filter_result = filter_domains(workspace,
                 bdll, left_ptrs, right_ptrs, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
@@ -741,7 +756,8 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 
         current.pop_back();
 
-        unfilter_domains(workspace, bdll, left_ptrs, right_ptrs, split_bds_list, deleted_bds, g0, g1);
+        unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
+                filter_result.split_bds_list, filter_result.deleted_bds_list, g0, g1);
 
         if (removed_bd) {
             bd_it->active = true;
