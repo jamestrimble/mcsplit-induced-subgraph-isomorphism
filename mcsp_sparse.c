@@ -1,4 +1,4 @@
-#include "graph.h"
+#include "sparse_graph.h"
 
 #include <algorithm>
 #include <numeric>
@@ -12,7 +12,7 @@
 #include <thread>
 #include <condition_variable>
 #include <atomic>
-#include <list>
+//#include <list>
 
 #include <argp.h>
 #include <limits.h>
@@ -45,9 +45,7 @@ static struct argp_option options[] = {
     {"verbose", 'v', 0, 0, "Verbose output"},
     {"dimacs", 'd', 0, 0, "Read DIMACS format"},
     {"lad", 'l', 0, 0, "Read LAD format"},
-    {"directed", 'i', 0, 0, "Use directed graphs"},
     {"enumerate", 'e', 0, 0, "Count solutions"},
-    {"labelled", 'a', 0, 0, "Use edge and vertex labels"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
     {"timeout", 't', "timeout", 0, "Specify a timeout (seconds)"},
     { 0 }
@@ -76,9 +74,9 @@ void set_default_arguments() {
     arguments.verbose = false;
     arguments.dimacs = false;
     arguments.lad = false;
-    arguments.directed = false;
+    arguments.directed = false;   // TODO: remove (unused)
     arguments.enumerate = false;
-    arguments.edge_labelled = false;
+    arguments.edge_labelled = false;  // TODO: remove (unused)
     arguments.vertex_labelled = false;
     arguments.filename1 = NULL;
     arguments.filename2 = NULL;
@@ -104,21 +102,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
         case 'v':
             arguments.verbose = true;
             break;
-        case 'i':
-            arguments.directed = true;
-            break;
         case 'e':
             arguments.enumerate = true;
             break;
-        case 'a':
-            if (arguments.vertex_labelled)
-                fail("The -a and -x options can't be used together.");
-            arguments.edge_labelled = true;
-            arguments.vertex_labelled = true;
-            break;
         case 'x':
-            if (arguments.edge_labelled)
-                fail("The -a and -x options can't be used together.");
             arguments.vertex_labelled = true;
             break;
         case 't':
@@ -190,9 +177,9 @@ using It = vector<int>::iterator;
 
 struct NewBidomain;
 
-using BDLL = std::list<NewBidomain>;
+//using BDLL = std::list<NewBidomain>;
 
-using BdIt = std::list<NewBidomain>::iterator;
+using BdIt = NewBidomain *;  //std::list<NewBidomain>::iterator;
 
 struct NewBidomain {
     It l, r;
@@ -202,28 +189,104 @@ struct NewBidomain {
     bool active;
     unsigned mod_index;
     BdIt reinsertion_point;
-    BdIt this_node;
     NewBidomain *next_in_split_list;
-    NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
-            l(l),
-            r(r),
-            l_mid(l_end),
-            r_mid(r_end),
-            l_end(l_end),
-            r_end(r_end),
-            is_adjacent (is_adjacent),
-            active(true),
-            mod_index(INT_MAX)
-            { };
+    NewBidomain *prev;
+    NewBidomain *next;
+//    NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
+//            l(l),
+//            r(r),
+//            l_mid(l_end),
+//            r_mid(r_end),
+//            l_end(l_end),
+//            r_end(r_end),
+//            is_adjacent (is_adjacent),
+//            active(true),
+//            mod_index(INT_MAX)
+//            { };
 
+    void initialise(It l, It r, It l_end, It r_end, bool is_adjacent)
+    {
+        this->l = l;
+        this->r = r;
+        this->l_mid = l_end;
+        this->r_mid = r_end;
+        this->l_end = l_end;
+        this->r_end = r_end;
+        this->is_adjacent  = is_adjacent;
+        this->active = true;
+        this->mod_index = INT_MAX;
+    }
+
+    void insert_before(BdIt p)
+    {
+        BdIt new_prev = p->prev;
+        this->prev = new_prev;
+        this->next = p;
+        p->prev = this;
+        new_prev->next = this;
+    }
+    void insert_after(BdIt p)
+    {
+        BdIt new_next = p->next;
+        this->next = new_next;
+        this->prev = p;
+        p->next = this;
+        new_next->prev = this;
+    }
+    void move_to_before(BdIt p)
+    {
+        this->prev->next = this->next;
+        this->next->prev = this->prev;
+        this->insert_before(p);
+    }
+    void move_to_after(BdIt p)
+    {
+        this->prev->next = this->next;
+        this->next->prev = this->prev;
+        this->insert_after(p);
+    }
+    void remove()
+    {
+        this->prev->next = this->next;
+        this->next->prev = this->prev;
+    }
+    void reinsert()
+    {
+        this->prev->next = this;
+        this->next->prev = this;
+    }
     int l_size() const { return l_end - l; }
     int r_size() const { return r_end - r; }
 };
 
+struct BDLL {
+    // A circular doubly-linked list
+    // (It's just circular to avoid the need for separate head and tail)
+    NewBidomain head;
+    BDLL() {
+        this->head.next = &this->head;
+        this->head.prev = &this->head;
+    }
+
+    NewBidomain *begin() { return head.next; }
+    NewBidomain *end() { return &head; }
+    NewBidomain & back() { return *head.prev; }
+    int size()
+    {
+        int result = 0;
+        for (BdIt bd_it=begin(); bd_it!=end(); bd_it=bd_it->next) {
+            ++result;
+        }
+        return result;
+    }
+    bool empty() { return head.next == &head; }
+};
+
+
 // Some temporary storage space
 struct Workspace {
     vector<BdIt> split_bds;
-    std::list<NewBidomain> bd_free_list;
+    BDLL bd_free_list;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -269,7 +332,7 @@ struct Ptrs
 
 void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, const vector<VtxPair>& current,
-        const BDLL & bdll)
+        BDLL & bdll)
 {
     cout << "Nodes: " << nodes << std::endl;
     cout << "Length of current assignment: " << current.size() << std::endl;
@@ -280,10 +343,10 @@ void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
     cout << std::endl;
     if (!current.empty() > 0) {
         std::cout << "Adjacent to " << current.back().v << " in g0: ";
-        for (int x : g0.adj_lists[current.back().v]) std::cout << x << " ";
+        for (int x : g0.filtered_adj_lists[current.back().v]) std::cout << x << " ";
         std::cout << std::endl;
         std::cout << "Adjacent to " << current.back().w << " in g1: ";
-        for (int x : g1.adj_lists[current.back().w]) std::cout << x << " ";
+        for (int x : g1.filtered_adj_lists[current.back().w]) std::cout << x << " ";
         std::cout << std::endl;
     }
     cout << "---------------------" << std::endl;
@@ -299,13 +362,13 @@ void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
 //            cout << "PROBLEM WITH g1 VERTEX " << i << "!!!" << endl;
 //        }
 //    }
-    for (auto & bd : bdll) {
+    for (BdIt bd_it=bdll.begin(); bd_it!=bdll.end(); bd_it=bd_it->next) {
         cout << "Left  ";
-        for (It it=bd.l; it!=bd.l_end; it++)
+        for (It it=bd_it->l; it!=bd_it->l_end; it++)
             cout << *it << " ";
         cout << std::endl;
         cout << "Right  ";
-        for (It it=bd.r; it!=bd.r_end; it++)
+        for (It it=bd_it->r; it!=bd_it->r_end; it++)
             cout << *it << " ";
         cout << std::endl;
     }
@@ -327,7 +390,7 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
             return false;
         for (unsigned int j=i+1; j<solution.size(); j++) {
             struct VtxPair p1 = solution[j];
-            if (g0.adjmat[p0.v][p1.v] != g1.adjmat[p0.w][p1.w])
+            if (g0.has_edge(p0.v, p1.v) != g1.has_edge(p0.w, p1.w))
                 return false;
         }
     }
@@ -350,7 +413,7 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
         int v = left[bd.l + i];
         for (int j=0; j<i; j++) {
             int w = left[bd.l + j];
-            if (g0.adjmat[v][w]) {
+            if (g0.has_filtered_edge(v, w)) {   // FIXME: slow!
                 left_deg[i]++;
                 left_deg[j]++;
             }
@@ -360,7 +423,7 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
         int v = right[bd.r + i];
         for (int j=0; j<i; j++) {
             int w = right[bd.r + j];
-            if (g1.adjmat[v][w]) {
+            if (g1.has_filtered_edge(v, w)) {   // FIXME: slow!
                 right_deg[i]++;
                 right_deg[j]++;
             }
@@ -387,8 +450,8 @@ bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int>
 int calc_bound(BDLL & bdll, const Graph & g0, const Graph & g1, int target)
 {
     int bound = 0;
-    for (const auto & bd : bdll) {
-        bound += std::min(bd.l_size(), bd.r_size());
+    for (BdIt bd_it=bdll.begin(); bd_it!=bdll.end(); bd_it=bd_it->next) {
+        bound += std::min(bd_it->l_size(), bd_it->r_size());
     }
 //#ifdef TIGHTER_BOUNDING
 //    if (bound < target)
@@ -407,7 +470,8 @@ BdIt select_bidomain(BDLL & domains)
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
     int min_size = INT_MAX;
-    for (auto const & bd : domains) {
+    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
+        auto const & bd = *bd_it;
         int left_len = bd.l_end - bd.l;
         int right_len = bd.r_end - bd.r;
         int len = arguments.heuristic == min_max ?
@@ -418,7 +482,7 @@ BdIt select_bidomain(BDLL & domains)
     }
     int min_tie_breaker = INT_MAX;
     BdIt best = domains.end();
-    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=std::next(bd_it)) {
+    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
         auto const & bd = *bd_it;
         int left_len = bd.l_end - bd.l;
         int right_len = bd.r_end - bd.r;
@@ -436,8 +500,9 @@ BdIt select_bidomain(BDLL & domains)
     return best;
 }
 
-std::pair<NewBidomain *, BDLL> filter_domains(
+NewBidomain * filter_domains(
         Workspace & workspace,
+        BDLL & deleted_bds,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, int v, int w,
         bool multiway)
@@ -447,9 +512,8 @@ std::pair<NewBidomain *, BDLL> filter_domains(
     split_bds.clear();
 
     NewBidomain *split_bds_list = nullptr;
-    BDLL deleted_bds;
 
-    for (int u : g0.adj_lists[v]) {
+    for (int u : g0.filtered_adj_lists[v]) {
         auto bd_it = left_ptrs[u].bd_it;
         auto & bd = *bd_it;
         if (!bd.active) continue;
@@ -467,7 +531,7 @@ std::pair<NewBidomain *, BDLL> filter_domains(
         left_ptrs[*u_it].vtx_it = u_it;
         --bd.l_mid;
     }
-    for (int u : g1.adj_lists[w]) {
+    for (int u : g1.filtered_adj_lists[w]) {
         auto bd_it = right_ptrs[u].bd_it;
         auto & bd = *bd_it;
         if (!bd.active) continue;
@@ -487,42 +551,44 @@ std::pair<NewBidomain *, BDLL> filter_domains(
     }
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
+        BdIt new_elem;
         if (!workspace.bd_free_list.empty()) {
-            BdIt new_elem = std::prev(workspace.bd_free_list.end());
-            bdll.splice(std::next(bd_it), workspace.bd_free_list, new_elem);
-            *new_elem = {bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false};
+            new_elem = &workspace.bd_free_list.back();
+            new_elem->move_to_after(bd_it);
+            //bdll.splice(std::next(bd_it), workspace.bd_free_list, new_elem);
         } else {
-            bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
+            new_elem = new NewBidomain();
+            new_elem->insert_after(bd_it);
+            //bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
         }
-
-        // TODO: improve this (make `this_node` unnecessary?)
-        std::next(bd_it)->this_node = std::next(bd_it);
+        new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
 
         // Insert the new BD at the head of the linked list of split BDs
-        std::next(bd_it)->next_in_split_list = split_bds_list;
-        split_bds_list = &*std::next(bd_it);
+        new_elem->next_in_split_list = split_bds_list;
+        split_bds_list = new_elem;
 
         for (It it=bd_it->l_mid; it<bd_it->l_end; it++) {
-            left_ptrs[*it].bd_it = std::next(bd_it);
+            left_ptrs[*it].bd_it = new_elem;
         }
         for (It it=bd_it->r_mid; it<bd_it->r_end; it++) {
-            right_ptrs[*it].bd_it = std::next(bd_it);
+            right_ptrs[*it].bd_it = new_elem;
         }
         bd_it->l_end = bd_it->l_mid;
         bd_it->r_end = bd_it->r_mid;
-        BdIt bd_its[2] = {bd_it, std::next(bd_it)};
+        BdIt bd_its[2] = {bd_it, new_elem};
         for (int i=0; i<2; i++) {
             BdIt bd_it = bd_its[i];
             // Delete old and new BDs if necessary
             auto & bd = *bd_it;
             if (bd.l == bd.l_end || bd.r == bd.r_end) {
                 bd.active = false;
-                bd.reinsertion_point = std::next(bd_it);
-                deleted_bds.splice(deleted_bds.end(), bdll, bd_it);
+                bd.reinsertion_point = bd_it->next;
+                bd_it->move_to_before(deleted_bds.end());
+                //deleted_bds.splice(deleted_bds.end(), bdll, bd_it);
             }
         }
     }
-    return {split_bds_list, std::move(deleted_bds)};
+    return split_bds_list;
 }
 
 void unfilter_domains(
@@ -538,14 +604,15 @@ void unfilter_domains(
     while (!deleted_bds.empty()) {
         NewBidomain & bd = deleted_bds.back();
         bd.active = true;
-        bdll.splice(bd.reinsertion_point, deleted_bds, std::prev(deleted_bds.end()));
+        deleted_bds.back().move_to_before(bd.reinsertion_point);
+        //bdll.splice(bd.reinsertion_point, deleted_bds, std::prev(deleted_bds.end()));
     }
 
     for (NewBidomain *p=split_bds_list; p!=nullptr; p=p->next_in_split_list) {
         // TODO: better variable names
-        BdIt nxt_it = p->this_node;
-        auto & nxt = *nxt_it;
-        BdIt bd_it = std::prev(nxt_it);
+        //BdIt nxt_it = p;
+        auto & nxt = *p;
+        BdIt bd_it = nxt.prev;
         for (It it=nxt.l; it<nxt.l_end; it++) {
             left_ptrs[*it].bd_it = bd_it;
         }
@@ -554,7 +621,8 @@ void unfilter_domains(
         }
         bd_it->l_end = nxt.l_end;
         bd_it->r_end = nxt.r_end;
-        workspace.bd_free_list.splice(workspace.bd_free_list.end(), bdll, nxt_it);
+        nxt.move_to_before(workspace.bd_free_list.end());
+        //workspace.bd_free_list.splice(workspace.bd_free_list.end(), bdll, nxt_it);
         //bdll.erase(std::next(bd_it));
     }
 }
@@ -611,6 +679,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
     if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
         return;
 
+    // TODO: don't calculate bound explicitly? Just ensure rightlen >= leftlen for each BD
     int bound = current.size() + calc_bound(bdll, g0, g1, g0.n - current.size());
     if (bound < g0.n)
         return;
@@ -629,16 +698,21 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
     for (int w : ww) {
         assign(v, w, left_ptrs, right_ptrs);
 
-        BDLL removed_bd_lst;
-        if (bd_it->l_size() == 0) {
+        bool removed_bd = bd_it->l_size() == 0;
+        if (removed_bd) {
             bd_it->active = false;
-            bd_it->reinsertion_point = std::next(bd_it);
-            removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
+            bd_it->remove();
         }
+        //BDLL removed_bd_lst;
+        //if (bd_it->l_size() == 0) {
+        //    bd_it->active = false;
+        //    bd_it->reinsertion_point = std::next(bd_it);
+        //    bd_it->move_to_before(removed_bd_lst.end());
+        //    //removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
+        //}
 
-        NewBidomain *split_bds_list;
         BDLL deleted_bds;
-        tie(split_bds_list, deleted_bds) = filter_domains(workspace,
+        NewBidomain *split_bds_list = filter_domains(workspace, deleted_bds,
                 bdll, left_ptrs, right_ptrs, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
@@ -650,9 +724,9 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 
         unfilter_domains(workspace, bdll, left_ptrs, right_ptrs, split_bds_list, deleted_bds, g0, g1);
 
-        if (!removed_bd_lst.empty()) {
-            removed_bd_lst.front().active = true;
-            bdll.splice(removed_bd_lst.front().reinsertion_point, removed_bd_lst, removed_bd_lst.begin());
+        if (removed_bd) {
+            bd_it->active = true;
+            bd_it->reinsert();
         }
         unassign(v, left_ptrs, right_ptrs);
 
@@ -677,7 +751,6 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<bool> g0_active_vertices(g0.n);
     vector<bool> g1_active_vertices(g1.n);
 
-    auto domains = vector<Bidomain> {};
     BDLL bdll;
 
     std::set<unsigned int> left_labels;
@@ -716,28 +789,29 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
 
         int left_len = left.size() - start_l;
         int right_len = right.size() - start_r;
-        domains.push_back({start_l, start_r, left_len, right_len, false});
-        bdll.emplace_back(new_left.begin() + start_l,
+
+        NewBidomain *new_elem = new NewBidomain();
+        new_elem->insert_before(&bdll.head);
+        new_elem->initialise(new_left.begin() + start_l,
                           new_right.begin() + start_r,
                           new_left.begin() + start_l + left_len,
                           new_right.begin() + start_r + right_len,
                           false);
-        std::prev(bdll.end())->this_node = std::prev(bdll.end());
 
         for (int i=0; i<g0.n; i++) {
             if (g0.label[i]==label) {
-                left_ptrs[i].bd_it = std::prev(bdll.end());
+                left_ptrs[i].bd_it = &bdll.back();
             }
         }
         for (int i=0; i<g1.n; i++) {
             if (g1.label[i]==label) {
-                right_ptrs[i].bd_it = std::prev(bdll.end());
+                right_ptrs[i].bd_it = &bdll.back();
             }
         }
     }
 
-    make_adj_lists(g0, g0_active_vertices);
-    make_adj_lists(g1, g1_active_vertices);
+    filter_adj_lists(g0, g0_active_vertices);
+    filter_adj_lists(g1, g1_active_vertices);
 
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
@@ -749,13 +823,10 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
 }
 
 vector<int> calculate_degrees(const Graph & g) {
-    vector<int> degree(g.n, 0);
+    vector<int> degree;
+    degree.reserve(g.n);
     for (int v=0; v<g.n; v++) {
-        for (int w=0; w<g.n; w++) {
-            unsigned int mask = 0xFFFFu;
-            if (g.adjmat[v][w] & mask) degree[v]++;
-            if (g.adjmat[v][w] & ~mask) degree[v]++;  // inward edge, in directed case
-        }
+        degree.push_back(g.adj_lists[v].size());
     }
     return degree;
 }
