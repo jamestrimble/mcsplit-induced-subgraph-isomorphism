@@ -189,7 +189,10 @@ struct NewBidomain {
     bool active;
     unsigned mod_index;
     BdIt reinsertion_point;
-    NewBidomain *next_in_split_list;
+    union {
+        NewBidomain *next_in_split_list;
+        NewBidomain *next_in_free_list;
+    };
     NewBidomain *prev;
     NewBidomain *next;
 //    NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
@@ -285,8 +288,9 @@ struct BDLL {
 
 // Some temporary storage space
 struct Workspace {
+    // TODO: encapsulate functions for getting / adding free list
     vector<BdIt> split_bds;
-    BDLL bd_free_list;
+    NewBidomain *bd_free_list = nullptr;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
@@ -552,15 +556,15 @@ NewBidomain * filter_domains(
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
         BdIt new_elem;
-        if (!workspace.bd_free_list.empty()) {
-            new_elem = &workspace.bd_free_list.back();
-            new_elem->move_to_after(bd_it);
+        if (workspace.bd_free_list != nullptr) {
+            new_elem = workspace.bd_free_list;
+            workspace.bd_free_list = new_elem->next_in_free_list;
             //bdll.splice(std::next(bd_it), workspace.bd_free_list, new_elem);
         } else {
             new_elem = new NewBidomain();
-            new_elem->insert_after(bd_it);
             //bdll.emplace(std::next(bd_it), bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
         }
+        new_elem->insert_after(bd_it);
         new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
 
         // Insert the new BD at the head of the linked list of split BDs
@@ -608,7 +612,7 @@ void unfilter_domains(
         //bdll.splice(bd.reinsertion_point, deleted_bds, std::prev(deleted_bds.end()));
     }
 
-    for (NewBidomain *p=split_bds_list; p!=nullptr; p=p->next_in_split_list) {
+    for (NewBidomain *p=split_bds_list; p!=nullptr; ) {
         // TODO: better variable names
         //BdIt nxt_it = p;
         auto & nxt = *p;
@@ -621,7 +625,12 @@ void unfilter_domains(
         }
         bd_it->l_end = nxt.l_end;
         bd_it->r_end = nxt.r_end;
-        nxt.move_to_before(workspace.bd_free_list.end());
+
+        p->remove();
+        p = p->next_in_split_list;
+
+        nxt.next_in_free_list = workspace.bd_free_list;
+        workspace.bd_free_list = &nxt;
         //workspace.bd_free_list.splice(workspace.bd_free_list.end(), bdll, nxt_it);
         //bdll.erase(std::next(bd_it));
     }
