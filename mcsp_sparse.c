@@ -436,24 +436,16 @@ BdIt select_bidomain(BDLL & domains)
     int min_size = INT_MAX;
     for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
         auto const & bd = *bd_it;
-        int left_len = bd.l_end - bd.l;
         int right_len = bd.r_end - bd.r;
-        int len = arguments.heuristic == min_max ?
-                std::max(left_len, right_len) :
-                left_len * right_len;
-        if (len < min_size)
-            min_size = len;
+        if (right_len < min_size)
+            min_size = right_len;
     }
     int min_tie_breaker = INT_MAX;
     BdIt best = domains.end();
     for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
         auto const & bd = *bd_it;
-        int left_len = bd.l_end - bd.l;
         int right_len = bd.r_end - bd.r;
-        int len = arguments.heuristic == min_max ?
-                std::max(left_len, right_len) :
-                left_len * right_len;
-        if (len != min_size)
+        if (right_len != min_size)
             continue;
         int tie_breaker = *std::min_element(bd.l, bd.l_end);
         if (tie_breaker < min_tie_breaker) {
