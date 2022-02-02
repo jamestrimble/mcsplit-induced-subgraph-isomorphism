@@ -420,71 +420,12 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
     return true;
 }
 
-bool can_backtrack_using_degrees_within_bidomain(const Bidomain& bd, vector<int> & left,
-        vector<int> & right, const Graph & g0, const Graph & g1)
-{
-    if (bd.left_len > bd.right_len)
-        return true;
-
-    // Don't bother with this procedure if it's likely to be expensive or ineffective
-    if (bd.left_len == 1 || bd.left_len > MAX_SIZE_FOR_STRONGER_BOUND || bd.right_len > bd.left_len * MAX_RATIO_FOR_STRONGER_BOUND)
-        return false;
-
-    std::vector<int> left_deg(bd.left_len, 0);   // Degree in the subgraph induced by the left set of bd
-    std::vector<int> right_deg(bd.right_len, 0);   // Degree in the subgraph induced by the right set of bd
-    for (int i=0; i<bd.left_len; i++) {
-        int v = left[bd.l + i];
-        for (int j=0; j<i; j++) {
-            int w = left[bd.l + j];
-            if (g0.has_filtered_edge(v, w)) {   // FIXME: slow!
-                left_deg[i]++;
-                left_deg[j]++;
-            }
-        }
-    }
-    for (int i=0; i<bd.right_len; i++) {
-        int v = right[bd.r + i];
-        for (int j=0; j<i; j++) {
-            int w = right[bd.r + j];
-            if (g1.has_filtered_edge(v, w)) {   // FIXME: slow!
-                right_deg[i]++;
-                right_deg[j]++;
-            }
-        }
-    }
-
-    std::sort(std::begin(left_deg), std::end(left_deg));
-    std::sort(std::begin(right_deg), std::end(right_deg));
-
-    //std::cout << left_deg[0] << " " << right_deg[0] << std::endl;
-    for (int i=0; i<bd.left_len; i++) {
-//        std::cout << i << " " << left_deg.size() << " " << bd.left_len << std::endl;
-        // Check neighbourhood degree sequence
-        if (left_deg[bd.left_len-1-i] > right_deg[bd.right_len-1-i])
-            return true;
-        // Check neighbourhood degree sequence in complement graph
-        if (bd.left_len-1-left_deg[i] > bd.right_len-1-right_deg[i])
-            return true;
-    }
-
-    return false;
-}
-
-int calc_bound(BDLL & bdll, const Graph & g0, const Graph & g1, int target)
+int calc_bound(Workspace & workspace, BDLL & bdll, const Graph & g0, const Graph & g1, int target)
 {
     int bound = 0;
     for (BdIt bd_it=bdll.begin(); bd_it!=bdll.end(); bd_it=bd_it->next) {
         bound += std::min(bd_it->l_size(), bd_it->r_size());
     }
-//#ifdef TIGHTER_BOUNDING
-//    if (bound < target)
-//        return 0;   // bactrack
-//    for (const Bidomain &bd : domains) {
-//        if (can_backtrack_using_degrees_within_bidomain(bd, left, right, g0, g1)) {
-//            return 0;  // backtrack
-//        }
-//    }
-//#endif
     return bound;
 }
 
@@ -524,10 +465,11 @@ BdIt select_bidomain(BDLL & domains)
 }
 
 struct SplitAndDeletedLists {
+    bool quit_early;
     NewBidomain *split_bds_list;
     NewBidomain *deleted_bds_list;
-    SplitAndDeletedLists(NewBidomain *split_bds_list, NewBidomain *deleted_bds_list)
-        : split_bds_list(split_bds_list), deleted_bds_list(deleted_bds_list) {}
+    SplitAndDeletedLists(bool quit_early, NewBidomain *split_bds_list, NewBidomain *deleted_bds_list)
+        : quit_early(quit_early), split_bds_list(split_bds_list), deleted_bds_list(deleted_bds_list) {}
 };
 
 SplitAndDeletedLists filter_domains(
@@ -539,9 +481,6 @@ SplitAndDeletedLists filter_domains(
     // TODO: quit early if solution is impossible?
     vector<BdIt> & split_bds = workspace.split_bds;
     split_bds.clear();
-
-    NewBidomain *split_bds_list = nullptr;
-    NewBidomain *deleted_bds_list = nullptr;
 
     for (int u : g0.filtered_adj_lists[v]) {
         auto bd_it = left_ptrs[u].bd_it;
@@ -580,6 +519,19 @@ SplitAndDeletedLists filter_domains(
         --bd.r_mid;
     }
 
+    // Try to quit early if a solution is impossible
+    for (auto bd_it : split_bds) {
+        if (bd_it->l_end - bd_it->l_mid > bd_it->r_end - bd_it->r_mid) {
+            return { true, nullptr, nullptr };
+        }
+        if (bd_it->l_mid - bd_it->l > bd_it->r_mid - bd_it->r) {
+            return { true, nullptr, nullptr };
+        }
+    }
+
+    NewBidomain *split_bds_list = nullptr;
+    NewBidomain *deleted_bds_list = nullptr;
+
     // Do splits
     for (auto bd_it : split_bds) {
         // TODO: fix connectedness
@@ -617,7 +569,7 @@ SplitAndDeletedLists filter_domains(
             bd_it = bd_it->next;
         }
     }
-    return {split_bds_list, deleted_bds_list};
+    return {false, split_bds_list, deleted_bds_list};
 }
 
 void unfilter_domains(
@@ -715,7 +667,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         return;
 
     // TODO: don't calculate bound explicitly? Just ensure rightlen >= leftlen for each BD
-    int bound = current.size() + calc_bound(bdll, g0, g1, g0.n - current.size());
+    int bound = current.size() + calc_bound(workspace, bdll, g0, g1, g0.n - current.size());
     if (bound < g0.n)
         return;
 
@@ -731,6 +683,10 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
     for (int w : ww) {
+        // Not necessary, but sometimes helps:
+        if (g0.adj_lists[v].size() > g1.adj_lists[w].size())
+            continue;
+
         assign(v, w, left_ptrs, right_ptrs);
 
         bool removed_bd = bd_it->l_size() == 0;
@@ -750,14 +706,16 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
                 bdll, left_ptrs, right_ptrs, g0, g1, v, w,
                 arguments.directed || arguments.edge_labelled);
 
-        current.push_back(VtxPair(v, w));
+        if (!filter_result.quit_early) {
+            current.push_back(VtxPair(v, w));
 
-        solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
+            solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
 
-        current.pop_back();
+            current.pop_back();
 
-        unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
-                filter_result.split_bds_list, filter_result.deleted_bds_list, g0, g1);
+            unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
+                    filter_result.split_bds_list, filter_result.deleted_bds_list, g0, g1);
+        }
 
         if (removed_bd) {
             bd_it->active = true;
