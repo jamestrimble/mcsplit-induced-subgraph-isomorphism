@@ -185,9 +185,6 @@ struct NewBidomain {
     It l, r;
     It l_mid, r_mid;
     It l_end, r_end;
-    bool is_adjacent;
-    bool active;
-    bool undergoing_split;
     union {
         NewBidomain *next_in_split_list;
         NewBidomain *next_in_free_list;
@@ -195,16 +192,15 @@ struct NewBidomain {
     NewBidomain *next_in_deleted_list;
     NewBidomain *prev;
     NewBidomain *next;
+    bool active;
+    bool undergoing_split;
 
-    void initialise(It l, It r, It l_end, It r_end, bool is_adjacent)
+    void initialise(It l, It r, It l_end, It r_end)
     {
         this->l = l;
         this->r = r;
-        this->l_mid = l_end;
-        this->r_mid = r_end;
         this->l_end = l_end;
         this->r_end = r_end;
-        this->is_adjacent  = is_adjacent;
         this->active = true;
         this->undergoing_split = false;
     }
@@ -296,7 +292,7 @@ struct Workspace {
         bd->next_in_free_list = bd_free_list;
         bd_free_list = bd;
     }
-//private:
+private:
     NewBidomain *bd_free_list = nullptr;
     vector<vector<NewBidomain>> bd_memory_pools;
 };
@@ -519,10 +515,9 @@ SplitAndDeletedLists filter_domains(
 
     // Do splits
     for (auto bd_it : split_bds) {
-        // TODO: fix connectedness
         BdIt new_elem = workspace.get_from_free_list();
         new_elem->insert_after(bd_it);
-        new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end, false);
+        new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end);
 
         // Insert the new BD at the head of the linked list of split BDs
         new_elem->next_in_split_list = split_bds_list;
@@ -776,8 +771,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
         new_elem->initialise(new_left.begin() + start_l,
                           new_right.begin() + start_r,
                           new_left.begin() + start_l + left_len,
-                          new_right.begin() + start_r + right_len,
-                          false);
+                          new_right.begin() + start_r + right_len);
 
         for (int i=0; i<g0.n; i++) {
             if (g0.label[i]==label) {
