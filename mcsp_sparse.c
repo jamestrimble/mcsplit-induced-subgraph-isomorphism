@@ -32,13 +32,13 @@ static void fail(std::string msg) {
     exit(1);
 }
 
-enum Heuristic { min_max, min_product };
+enum Heuristic { heur_A, heur_B };
 
 /*******************************************************************************
                              Command-line arguments
 *******************************************************************************/
 
-static char doc[] = "Find a maximum clique in a graph in DIMACS format\vHEURISTIC can be min_max or min_product";
+static char doc[] = "Subgraph isomorphism\vHEURISTIC can be A or B";
 static char args_doc[] = "HEURISTIC FILENAME1 FILENAME2";
 static struct argp_option options[] = {
     {"quiet", 'q', 0, 0, "Quiet output"},
@@ -113,12 +113,12 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case ARGP_KEY_ARG:
             if (arguments.arg_num == 0) {
-                if (std::string(arg) == "min_max")
-                    arguments.heuristic = min_max;
-                else if (std::string(arg) == "min_product")
-                    arguments.heuristic = min_product;
+                if (std::string(arg) == "A")
+                    arguments.heuristic = heur_A;
+                else if (std::string(arg) == "B")
+                    arguments.heuristic = heur_B;
                 else
-                    fail("Unknown heuristic (try min_max or min_product)");
+                    fail("Unknown heuristic (try A or B)");
             } else if (arguments.arg_num == 1) {
                 arguments.filename1 = arg;
             } else if (arguments.arg_num == 2) {
@@ -414,7 +414,7 @@ int calc_bound(Workspace & workspace, BDLL & bdll, const Graph & g0, const Graph
     return bound;
 }
 
-BdIt select_bidomain(BDLL & domains)
+BdIt select_bidomain_heur_A(BDLL & domains)
 {
     // Select the bidomain with the smallest max(leftsize, rightsize), breaking
     // ties on the smallest vertex index in the left set
@@ -439,6 +439,35 @@ BdIt select_bidomain(BDLL & domains)
         }
     }
     return best;
+}
+
+BdIt select_bidomain_heur_B(BDLL & domains, const Graph & g0)
+{
+    double best_score = INT_MIN;
+    BdIt best = domains.end();
+    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
+        auto const & bd = *bd_it;
+        int right_len = bd.r_end - bd.r;
+        if (right_len == 1) {
+            // Special case where no branching is required
+            return bd_it;
+        }
+        int deg = g0.adj_lists[*std::min_element(bd.l, bd.l_end)].size();
+        double score = double(deg) / right_len;
+        if (score > best_score) {
+            best_score = score;
+            best = bd_it;
+        }
+    }
+    return best;
+}
+
+BdIt select_bidomain(BDLL & domains, const Graph & g0)
+{
+    if (arguments.heuristic == heur_A)
+        return select_bidomain_heur_A(domains);
+    else
+        return select_bidomain_heur_B(domains, g0);
 }
 
 struct SplitAndDeletedLists {
@@ -654,7 +683,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
     if (bound < g0.n)
         return;
 
-    BdIt bd_it = select_bidomain(bdll);
+    BdIt bd_it = select_bidomain(bdll, g0);
         
     if (bd_it == bdll.end())
         return;
