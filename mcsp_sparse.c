@@ -458,7 +458,6 @@ SplitAndDeletedLists filter_domains(
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         const Graph & g0, const Graph & g1, int v, int w)
 {
-    // TODO: quit early if solution is impossible?
     vector<BdIt> & split_bds = workspace.split_bds;
     split_bds.clear();
 
