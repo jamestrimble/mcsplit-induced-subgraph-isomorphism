@@ -187,7 +187,7 @@ struct NewBidomain {
     It l_end, r_end;
     bool is_adjacent;
     bool active;
-    unsigned mod_index;
+    bool undergoing_split;
     union {
         NewBidomain *next_in_split_list;
         NewBidomain *next_in_free_list;
@@ -195,17 +195,6 @@ struct NewBidomain {
     NewBidomain *next_in_deleted_list;
     NewBidomain *prev;
     NewBidomain *next;
-//    NewBidomain(It l, It r, It l_end, It r_end, bool is_adjacent):
-//            l(l),
-//            r(r),
-//            l_mid(l_end),
-//            r_mid(r_end),
-//            l_end(l_end),
-//            r_end(r_end),
-//            is_adjacent (is_adjacent),
-//            active(true),
-//            mod_index(INT_MAX)
-//            { };
 
     void initialise(It l, It r, It l_end, It r_end, bool is_adjacent)
     {
@@ -217,7 +206,7 @@ struct NewBidomain {
         this->r_end = r_end;
         this->is_adjacent  = is_adjacent;
         this->active = true;
-        this->mod_index = INT_MAX;
+        this->undergoing_split = false;
     }
 
     void insert_before(BdIt p)
@@ -467,48 +456,53 @@ struct SplitAndDeletedLists {
 SplitAndDeletedLists filter_domains(
         Workspace & workspace,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        const Graph & g0, const Graph & g1, int v, int w,
-        bool multiway)
+        const Graph & g0, const Graph & g1, int v, int w)
 {
     // TODO: quit early if solution is impossible?
     vector<BdIt> & split_bds = workspace.split_bds;
     split_bds.clear();
 
     for (int u : g0.filtered_adj_lists[v]) {
-        auto bd_it = left_ptrs[u].bd_it;
+        auto & u_ptrs = left_ptrs[u];
+        auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
         auto & bd = *bd_it;
         if (!bd.active) continue;
-        if (bd.mod_index >= split_bds.size() || split_bds[bd.mod_index] != bd_it) {
+        if (!bd.undergoing_split) {
             bd.l_mid = bd.l_end;
             bd.r_mid = bd.r_end;
-            bd.mod_index = split_bds.size();
+            bd.undergoing_split = true;
             split_bds.push_back(bd_it);
         }
-        It u_it = left_ptrs[u].vtx_it;
+        It u_it = u_ptrs.vtx_it;
         It m = std::prev(bd.l_mid);
         std::swap(*u_it, *m);
-        left_ptrs[u].vtx_it = m;
+        u_ptrs.vtx_it = m;
         left_ptrs[*u_it].vtx_it = u_it;
         --bd.l_mid;
     }
     for (int u : g1.filtered_adj_lists[w]) {
-        auto bd_it = right_ptrs[u].bd_it;
+        auto & u_ptrs = right_ptrs[u];
+        auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
         auto & bd = *bd_it;
         if (!bd.active) continue;
-        if (bd.mod_index >= split_bds.size() || split_bds[bd.mod_index] != bd_it) {
+        if (!bd.undergoing_split) {
             bd.l_mid = bd.l_end;
             bd.r_mid = bd.r_end;
-            bd.mod_index = split_bds.size();
+            bd.undergoing_split = true;
             split_bds.push_back(bd_it);
         }
-        It u_it = right_ptrs[u].vtx_it;
+        It u_it = u_ptrs.vtx_it;
         It m = std::prev(bd.r_mid);
         std::swap(*u_it, *m);
-        right_ptrs[u].vtx_it = m;
+        u_ptrs.vtx_it = m;
         right_ptrs[*u_it].vtx_it = u_it;
         --bd.r_mid;
+    }
+
+    for (auto bd_it : split_bds) {
+        bd_it->undergoing_split = false;
     }
 
     // Try to quit early if a solution is impossible
@@ -698,8 +692,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         //}
 
         auto filter_result = filter_domains(workspace,
-                bdll, left_ptrs, right_ptrs, g0, g1, v, w,
-                arguments.directed || arguments.edge_labelled);
+                bdll, left_ptrs, right_ptrs, g0, g1, v, w);
 
         if (!filter_result.quit_early) {
             current.push_back(VtxPair(v, w));
