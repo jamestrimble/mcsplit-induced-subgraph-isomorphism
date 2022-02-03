@@ -476,16 +476,16 @@ SplitAndDeletedLists filter_domains(
 
     for (int u : g0.filtered_adj_lists[v]) {
         auto bd_it = left_ptrs[u].bd_it;
+        if (bd_it == nullptr) continue;
         auto & bd = *bd_it;
         if (!bd.active) continue;
-        It u_it = left_ptrs[u].vtx_it;
-        if (u_it >= bd.l_end) continue;
         if (bd.mod_index >= split_bds.size() || split_bds[bd.mod_index] != bd_it) {
             bd.l_mid = bd.l_end;
             bd.r_mid = bd.r_end;
             bd.mod_index = split_bds.size();
             split_bds.push_back(bd_it);
         }
+        It u_it = left_ptrs[u].vtx_it;
         It m = std::prev(bd.l_mid);
         std::swap(*u_it, *m);
         left_ptrs[u].vtx_it = m;
@@ -494,16 +494,16 @@ SplitAndDeletedLists filter_domains(
     }
     for (int u : g1.filtered_adj_lists[w]) {
         auto bd_it = right_ptrs[u].bd_it;
+        if (bd_it == nullptr) continue;
         auto & bd = *bd_it;
         if (!bd.active) continue;
-        It u_it = right_ptrs[u].vtx_it;
-        if (u_it >= bd.r_end) continue;
         if (bd.mod_index >= split_bds.size() || split_bds[bd.mod_index] != bd_it) {
             bd.l_mid = bd.l_end;
             bd.r_mid = bd.r_end;
             bd.mod_index = split_bds.size();
             split_bds.push_back(bd_it);
         }
+        It u_it = right_ptrs[u].vtx_it;
         It m = std::prev(bd.r_mid);
         std::swap(*u_it, *m);
         right_ptrs[u].vtx_it = m;
@@ -614,6 +614,7 @@ void assign(int v, int w,
     It l_last = std::prev(bd.l_end);
     std::swap(*v_it, *l_last);
     left_ptrs[v].vtx_it = l_last;
+    left_ptrs[v].bd_it = nullptr;
     left_ptrs[*v_it].vtx_it = v_it;
     --bd.l_end;
 
@@ -621,17 +622,19 @@ void assign(int v, int w,
     It r_last = std::prev(bd.r_end);
     std::swap(*w_it, *r_last);
     right_ptrs[w].vtx_it = r_last;
+    right_ptrs[w].bd_it = nullptr;
     right_ptrs[*w_it].vtx_it = w_it;
     --bd.r_end;
 }
 
-void unassign(int v,
+void unassign(int v, int w, BdIt bd_it,
         vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs)
 {
-    auto & bd = *left_ptrs[v].bd_it;
+    left_ptrs[v].bd_it = bd_it;
+    right_ptrs[w].bd_it = bd_it;
 //    cout << (bd.l_end - bd.l) << "------------" << endl;
-    ++bd.l_end;
-    ++bd.r_end;
+    ++bd_it->l_end;
+    ++bd_it->r_end;
 }
 
 void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
@@ -713,7 +716,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
             bd_it->active = true;
             bd_it->reinsert();
         }
-        unassign(v, left_ptrs, right_ptrs);
+        unassign(v, w, bd_it, left_ptrs, right_ptrs);
 
         if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
             break;
