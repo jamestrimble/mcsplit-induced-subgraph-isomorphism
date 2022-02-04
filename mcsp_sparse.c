@@ -12,7 +12,7 @@
 #include <thread>
 #include <condition_variable>
 #include <atomic>
-//#include <list>
+#include <list>
 
 #include <argp.h>
 #include <limits.h>
@@ -294,7 +294,7 @@ struct Workspace {
     }
 private:
     NewBidomain *bd_free_list = nullptr;
-    vector<vector<NewBidomain>> bd_memory_pools;
+    std::list<vector<NewBidomain>> bd_memory_pools;
 };
 
 //// A doubly-linked list of bidomains with dummy head and tail nodes
