@@ -478,15 +478,10 @@ struct SplitAndDeletedLists {
         : quit_early(quit_early), split_bds_list(split_bds_list), deleted_bds_list(deleted_bds_list) {}
 };
 
-SplitAndDeletedLists filter_domains(
-        Workspace & workspace,
-        BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        const Graph & g0, const Graph & g1, int v, int w)
+void partition_left(const vector<int> & left_vv, vector<Ptrs> & left_ptrs,
+        vector<BdIt> & split_bds)
 {
-    vector<BdIt> & split_bds = workspace.split_bds;
-    split_bds.clear();
-
-    for (int u : g0.filtered_adj_lists[v]) {
+    for (int u : left_vv) {
         auto & u_ptrs = left_ptrs[u];
         auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
@@ -505,7 +500,12 @@ SplitAndDeletedLists filter_domains(
         left_ptrs[*u_it].vtx_it = u_it;
         --bd.l_mid;
     }
-    for (int u : g1.filtered_adj_lists[w]) {
+}
+
+void partition_right(const vector<int> & right_vv, vector<Ptrs> & right_ptrs,
+        vector<BdIt> & split_bds)
+{
+    for (int u : right_vv) {
         auto & u_ptrs = right_ptrs[u];
         auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
@@ -524,25 +524,12 @@ SplitAndDeletedLists filter_domains(
         right_ptrs[*u_it].vtx_it = u_it;
         --bd.r_mid;
     }
+}
 
-    for (auto bd_it : split_bds) {
-        bd_it->undergoing_split = false;
-    }
-
-    // Try to quit early if a solution is impossible
-    for (auto bd_it : split_bds) {
-        if (bd_it->l_end - bd_it->l_mid > bd_it->r_end - bd_it->r_mid) {
-            return { true, nullptr, nullptr };
-        }
-        if (bd_it->l_mid - bd_it->l > bd_it->r_mid - bd_it->r) {
-            return { true, nullptr, nullptr };
-        }
-    }
-
+NewBidomain * do_splits(Workspace & workspace, vector<BdIt> & split_bds,
+        vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs)
+{
     NewBidomain *split_bds_list = nullptr;
-    NewBidomain *deleted_bds_list = nullptr;
-
-    // Do splits
     for (auto bd_it : split_bds) {
         BdIt new_elem = workspace.get_from_free_list();
         new_elem->insert_after(bd_it);
@@ -561,8 +548,12 @@ SplitAndDeletedLists filter_domains(
         bd_it->l_end = bd_it->l_mid;
         bd_it->r_end = bd_it->r_mid;
     }
+    return split_bds_list;
+}
 
-    // Do deletions
+NewBidomain * do_deletions(vector<BdIt> & split_bds)
+{
+    NewBidomain *deleted_bds_list = nullptr;
     for (auto bd_it : split_bds) {
         for (int i=0; i<2; i++) {
             // Delete old and new BDs if necessary
@@ -578,6 +569,41 @@ SplitAndDeletedLists filter_domains(
             bd_it = bd_it->next;
         }
     }
+    return deleted_bds_list;
+}
+
+SplitAndDeletedLists filter_domains(
+        Workspace & workspace,
+        BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
+        const Graph & g0, const Graph & g1, int v, int w)
+{
+    vector<BdIt> & split_bds = workspace.split_bds;
+    split_bds.clear();
+
+    partition_left(g0.filtered_adj_lists[v], left_ptrs, split_bds);
+
+    partition_right(g1.filtered_adj_lists[w], right_ptrs, split_bds);
+
+    for (auto bd_it : split_bds) {
+        bd_it->undergoing_split = false;
+    }
+
+    // Try to quit early if a solution is impossible
+    for (auto bd_it : split_bds) {
+        int l0_size = bd_it->l_mid - bd_it->l;
+        int r0_size = bd_it->r_mid - bd_it->r;
+        int l1_size = bd_it->l_end - bd_it->l_mid;
+        int r1_size = bd_it->r_end - bd_it->r_mid;
+        if (l0_size > r0_size || l1_size > r1_size) {
+            return { true, nullptr, nullptr };
+        }
+    }
+
+    NewBidomain *split_bds_list = do_splits(
+            workspace, split_bds, left_ptrs, right_ptrs);
+
+    NewBidomain *deleted_bds_list = do_deletions(split_bds);
+
     return {false, split_bds_list, deleted_bds_list};
 }
 
