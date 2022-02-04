@@ -334,8 +334,8 @@ private:
 
 struct Ptrs
 {
-    It vtx_it;
     BdIt bd_it;
+    It vtx_it;
 };
 
 void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
