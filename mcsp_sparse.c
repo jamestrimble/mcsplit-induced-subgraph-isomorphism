@@ -883,21 +883,16 @@ int main(int argc, char** argv) {
     vector<int> g0_deg = calculate_degrees(g0);
     vector<int> g1_deg = calculate_degrees(g1);
 
-    // TODO: As implemented here, g1_dense and g0_dense are false for all instances
-    // in the Experimental Evaluation section of the IJCAI 2017 paper.  Thus,
-    // we always sort the vertices in descending order of degree (or total degree,
-    // in the case of directed graphs.  Improvements could be made here: it would
-    // be nice if the program explored exactly the same search tree if both
-    // input graphs were complemented.
+    // TODO: improve the density-based decision?
     vector<int> vv0(g0.n);
     std::iota(std::begin(vv0), std::end(vv0), 0);
-    bool g1_dense = sum(g1_deg) > g1.n*(g1.n-1);
+    bool g1_dense = sum(g1_deg) * 2 > g1.n*(g1.n-1);
     std::stable_sort(std::begin(vv0), std::end(vv0), [&](int a, int b) {
         return g1_dense ? (g0_deg[a]<g0_deg[b]) : (g0_deg[a]>g0_deg[b]);
     });
     vector<int> vv1(g1.n);
     std::iota(std::begin(vv1), std::end(vv1), 0);
-    bool g0_dense = sum(g0_deg) > g0.n*(g0.n-1);
+    bool g0_dense = sum(g0_deg) * 2 > g0.n*(g0.n-1);
     std::stable_sort(std::begin(vv1), std::end(vv1), [&](int a, int b) {
         return g0_dense ? (g1_deg[a]<g1_deg[b]) : (g1_deg[a]>g1_deg[b]);
     });
