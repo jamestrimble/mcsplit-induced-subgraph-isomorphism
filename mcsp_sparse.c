@@ -567,7 +567,7 @@ SplitAndDeletedLists filter_domains(
         for (int i=0; i<2; i++) {
             // Delete old and new BDs if necessary
             auto & bd = *bd_it;
-            if (bd.l == bd.l_end || bd.r == bd.r_end) {
+            if (bd.l == bd.l_end) {
                 bd.active = false;
 
                 // add to deleted list
