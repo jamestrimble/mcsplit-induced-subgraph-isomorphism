@@ -436,11 +436,6 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         int right_len = partition(right, r, old_bd.right_len, g1.adjmat[w]);
         int left_len_noedge = old_bd.left_len - left_len;
         int right_len_noedge = old_bd.right_len - right_len;
-        if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
-            // Stop early if we know that there are vertices in the first graph that can't be matched
-            // TODO: improve this for the edge-labelled case
-            return new_d;
-        }
         if (left_len_noedge && right_len_noedge)
             new_d.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
         if (multiway && left_len && right_len) {
