@@ -511,8 +511,7 @@ void partition_left(const vector<int> & left_vv, vector<Ptrs> & left_ptrs,
         vector<BdIt> & split_bds, vector<int> & left_swap_vv)
 {
     for (int u : left_vv) {
-        auto & u_ptrs = left_ptrs[u];
-        auto bd_it = u_ptrs.bd_it;
+        auto bd_it = left_ptrs[u].bd_it;
         if (bd_it == nullptr) continue;
         if (!bd_it->undergoing_split) {
             bd_it->l_adj_count = 0;
@@ -529,8 +528,7 @@ void partition_right(const vector<int> & right_vv, vector<Ptrs> & right_ptrs,
         vector<BdIt> & split_bds, vector<int> & right_swap_vv)
 {
     for (int u : right_vv) {
-        auto & u_ptrs = right_ptrs[u];
-        auto bd_it = u_ptrs.bd_it;
+        auto bd_it = right_ptrs[u].bd_it;
         if (bd_it == nullptr) continue;
         if (!bd_it->active) continue;
         if (!bd_it->undergoing_split) {
