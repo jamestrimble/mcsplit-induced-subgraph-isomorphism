@@ -514,7 +514,6 @@ void partition_left(const vector<int> & left_vv, vector<Ptrs> & left_ptrs,
         auto & u_ptrs = left_ptrs[u];
         auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
-        if (!bd_it->active) continue;
         if (!bd_it->undergoing_split) {
             bd_it->l_adj_count = 0;
             bd_it->r_adj_count = 0;
