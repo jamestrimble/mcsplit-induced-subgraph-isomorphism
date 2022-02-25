@@ -32,7 +32,7 @@ static void fail(std::string msg) {
     exit(1);
 }
 
-enum Heuristic { heur_A, heur_B };
+enum Heuristic { heur_A, heur_B, heur_C };
 
 /*******************************************************************************
                              Command-line arguments
@@ -117,8 +117,10 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
                     arguments.heuristic = heur_A;
                 else if (std::string(arg) == "B")
                     arguments.heuristic = heur_B;
+                else if (std::string(arg) == "C")
+                    arguments.heuristic = heur_C;
                 else
-                    fail("Unknown heuristic (try A or B)");
+                    fail("Unknown heuristic (try A, B or C)");
             } else if (arguments.arg_num == 1) {
                 arguments.filename1 = arg;
             } else if (arguments.arg_num == 2) {
@@ -464,12 +466,37 @@ BdIt select_bidomain_heur_B(BDLL & domains, const Graph & g0)
     return best;
 }
 
-BdIt select_bidomain(BDLL & domains, const Graph & g0)
+BdIt select_bidomain_heur_C(BDLL & domains, const Graph & g0, const vector<int> & g0_remaining_deg)
+{
+    double best_score = INT_MIN;
+    BdIt best = domains.end();
+    for (BdIt bd_it=domains.begin(); bd_it!=domains.end(); bd_it=bd_it->next) {
+        auto const & bd = *bd_it;
+        int right_len = bd.r_end - bd.r;
+        if (right_len == 1) {
+            // Special case where no branching is required
+            return bd_it;
+        }
+        //int deg = g0.adj_lists[*std::min_element(bd.l, bd.l_end)].size();
+        //double score = double(deg) / right_len;
+        int remaining_deg = g0_remaining_deg[*std::min_element(bd.l, bd.l_end)];
+        double score = double(remaining_deg) / right_len;
+        if (score > best_score) {
+            best_score = score;
+            best = bd_it;
+        }
+    }
+    return best;
+}
+
+BdIt select_bidomain(BDLL & domains, const Graph & g0, const vector<int> & g0_remaining_deg)
 {
     if (arguments.heuristic == heur_A)
         return select_bidomain_heur_A(domains);
-    else
+    else if (arguments.heuristic == heur_B)
         return select_bidomain_heur_B(domains, g0);
+    else
+        return select_bidomain_heur_C(domains, g0, g0_remaining_deg);
 }
 
 struct SplitAndDeletedLists {
@@ -694,9 +721,8 @@ void unassign(int v, int w, BdIt bd_it,
 }
 
 void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
-        vector<VtxPair> & current,
-        BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        long long & solution_count)
+        vector<VtxPair> & current, BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
+        long long & solution_count, vector<int> & g0_remaining_deg)
 {
     if (abort_due_to_timeout)
         return;
@@ -722,7 +748,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
     if (bound < g0.n)
         return;
 
-    BdIt bd_it = select_bidomain(bdll, g0);
+    BdIt bd_it = select_bidomain(bdll, g0, g0_remaining_deg);
         
     if (bd_it == bdll.end())
         return;
@@ -731,6 +757,10 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
     std::sort(ww.begin(), ww.end());
 
     int v = *std::min_element(bd_it->l, bd_it->l_end);
+
+    if (arguments.heuristic == heur_C)
+        for (int u : g0.adj_lists[v])
+            --g0_remaining_deg[u];
 
     // Try assigning v to each vertex w in the colour class beginning at bd.r, in turn
     for (int w : ww) {
@@ -759,7 +789,8 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         if (!filter_result.quit_early) {
             current.push_back(VtxPair(v, w));
 
-            solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
+            solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count,
+                    g0_remaining_deg);
 
             current.pop_back();
 
@@ -776,6 +807,10 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         if (!arguments.enumerate && incumbent.size()==(unsigned)g0.n)
             break;
     }
+
+    if (arguments.heuristic == heur_C)
+        for (int u : g0.adj_lists[v])
+            ++g0_remaining_deg[u];
 }
 
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
@@ -859,7 +894,11 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     vector<VtxPair> incumbent;
     vector<VtxPair> current;
     long long solution_count = 0;
-    solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count);
+    vector<int> g0_remaining_deg {};  // used for heur_C
+    for (int i=0; i<g0.n; i++)
+        g0_remaining_deg.push_back(g0.adj_lists[i].size());
+    solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count,
+            g0_remaining_deg);
 
     return {incumbent, solution_count};
 }
