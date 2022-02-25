@@ -183,8 +183,8 @@ using BdIt = NewBidomain *;  //std::list<NewBidomain>::iterator;
 
 struct NewBidomain {
     It l, r;
-    It l_mid, r_mid;
     It l_end, r_end;
+    int l_adj_count, r_adj_count;   // used when partitioning
     union {
         NewBidomain *next_in_split_list;
         NewBidomain *next_in_free_list;
@@ -292,6 +292,8 @@ struct Workspace {
         bd->next_in_free_list = bd_free_list;
         bd_free_list = bd;
     }
+    vector<int> left_swap_vv;
+    vector<int> right_swap_vv;
 private:
     NewBidomain *bd_free_list = nullptr;
     std::list<vector<NewBidomain>> bd_memory_pools;
@@ -479,50 +481,40 @@ struct SplitAndDeletedLists {
 };
 
 void partition_left(const vector<int> & left_vv, vector<Ptrs> & left_ptrs,
-        vector<BdIt> & split_bds)
+        vector<BdIt> & split_bds, vector<int> & left_swap_vv)
 {
     for (int u : left_vv) {
         auto & u_ptrs = left_ptrs[u];
         auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
-        auto & bd = *bd_it;
-        if (!bd.active) continue;
-        if (!bd.undergoing_split) {
-            bd.l_mid = bd.l_end;
-            bd.r_mid = bd.r_end;
-            bd.undergoing_split = true;
+        if (!bd_it->active) continue;
+        if (!bd_it->undergoing_split) {
+            bd_it->l_adj_count = 0;
+            bd_it->r_adj_count = 0;
+            bd_it->undergoing_split = true;
             split_bds.push_back(bd_it);
         }
-        It u_it = u_ptrs.vtx_it;
-        It m = std::prev(bd.l_mid);
-        std::swap(*u_it, *m);
-        u_ptrs.vtx_it = m;
-        left_ptrs[*u_it].vtx_it = u_it;
-        --bd.l_mid;
+        ++bd_it->l_adj_count;
+        left_swap_vv.push_back(u);
     }
 }
 
 void partition_right(const vector<int> & right_vv, vector<Ptrs> & right_ptrs,
-        vector<BdIt> & split_bds)
+        vector<BdIt> & split_bds, vector<int> & right_swap_vv)
 {
     for (int u : right_vv) {
         auto & u_ptrs = right_ptrs[u];
         auto bd_it = u_ptrs.bd_it;
         if (bd_it == nullptr) continue;
-        auto & bd = *bd_it;
-        if (!bd.active) continue;
-        if (!bd.undergoing_split) {
-            bd.l_mid = bd.l_end;
-            bd.r_mid = bd.r_end;
-            bd.undergoing_split = true;
+        if (!bd_it->active) continue;
+        if (!bd_it->undergoing_split) {
+            bd_it->l_adj_count = 0;
+            bd_it->r_adj_count = 0;
+            bd_it->undergoing_split = true;
             split_bds.push_back(bd_it);
         }
-        It u_it = u_ptrs.vtx_it;
-        It m = std::prev(bd.r_mid);
-        std::swap(*u_it, *m);
-        u_ptrs.vtx_it = m;
-        right_ptrs[*u_it].vtx_it = u_it;
-        --bd.r_mid;
+        ++bd_it->r_adj_count;
+        right_swap_vv.push_back(u);
     }
 }
 
@@ -533,21 +525,40 @@ NewBidomain * do_splits(Workspace & workspace, vector<BdIt> & split_bds,
     for (auto bd_it : split_bds) {
         BdIt new_elem = workspace.get_from_free_list();
         new_elem->insert_after(bd_it);
-        new_elem->initialise(bd_it->l_mid, bd_it->r_mid, bd_it->l_end, bd_it->r_end);
+        new_elem->initialise(bd_it->l_end - bd_it->l_adj_count,
+                bd_it->r_end - bd_it->r_adj_count, bd_it->l_end, bd_it->r_end);
 
         // Insert the new BD at the head of the linked list of split BDs
         new_elem->next_in_split_list = split_bds_list;
         split_bds_list = new_elem;
-
-        for (It it=bd_it->l_mid; it<bd_it->l_end; it++) {
-            left_ptrs[*it].bd_it = new_elem;
-        }
-        for (It it=bd_it->r_mid; it<bd_it->r_end; it++) {
-            right_ptrs[*it].bd_it = new_elem;
-        }
-        bd_it->l_end = bd_it->l_mid;
-        bd_it->r_end = bd_it->r_mid;
     }
+
+    for (int u : workspace.left_swap_vv) {
+        auto & u_ptrs = left_ptrs[u];
+        auto & bd = *u_ptrs.bd_it;
+        It u_it = u_ptrs.vtx_it;
+        It m = --bd.l_end;
+        int t = *m;
+        *u_it = t;
+        *m = u;
+        u_ptrs.vtx_it = m;
+        u_ptrs.bd_it = bd.next;
+        left_ptrs[t].vtx_it = u_it;
+    }
+
+    for (int u : workspace.right_swap_vv) {
+        auto & u_ptrs = right_ptrs[u];
+        auto & bd = *u_ptrs.bd_it;
+        It u_it = u_ptrs.vtx_it;
+        It m = --bd.r_end;
+        int t = *m;
+        *u_it = t;
+        *m = u;
+        u_ptrs.vtx_it = m;
+        u_ptrs.bd_it = bd.next;
+        right_ptrs[t].vtx_it = u_it;
+    }
+
     return split_bds_list;
 }
 
@@ -580,9 +591,12 @@ SplitAndDeletedLists filter_domains(
     vector<BdIt> & split_bds = workspace.split_bds;
     split_bds.clear();
 
-    partition_left(g0.filtered_adj_lists[v], left_ptrs, split_bds);
+    workspace.left_swap_vv.clear();
+    workspace.right_swap_vv.clear();
 
-    partition_right(g1.filtered_adj_lists[w], right_ptrs, split_bds);
+    partition_left(g0.filtered_adj_lists[v], left_ptrs, split_bds, workspace.left_swap_vv);
+
+    partition_right(g1.filtered_adj_lists[w], right_ptrs, split_bds, workspace.right_swap_vv);
 
     for (auto bd_it : split_bds) {
         bd_it->undergoing_split = false;
@@ -590,17 +604,16 @@ SplitAndDeletedLists filter_domains(
 
     // Try to quit early if a solution is impossible
     for (auto bd_it : split_bds) {
-        int l0_size = bd_it->l_mid - bd_it->l;
-        int r0_size = bd_it->r_mid - bd_it->r;
-        int l1_size = bd_it->l_end - bd_it->l_mid;
-        int r1_size = bd_it->r_end - bd_it->r_mid;
+        int l0_size = bd_it->l_size() - bd_it->l_adj_count;
+        int r0_size = bd_it->r_size() - bd_it->r_adj_count;
+        int l1_size = bd_it->l_adj_count;
+        int r1_size = bd_it->r_adj_count;
         if (l0_size > r0_size || l1_size > r1_size) {
             return { true, nullptr, nullptr };
         }
     }
 
-    NewBidomain *split_bds_list = do_splits(
-            workspace, split_bds, left_ptrs, right_ptrs);
+    NewBidomain *split_bds_list = do_splits(workspace, split_bds, left_ptrs, right_ptrs);
 
     NewBidomain *deleted_bds_list = do_deletions(split_bds);
 
