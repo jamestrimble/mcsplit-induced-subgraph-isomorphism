@@ -772,13 +772,6 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
             bd_it->active = false;
             bd_it->remove();
         }
-        //BDLL removed_bd_lst;
-        //if (bd_it->l_size() == 0) {
-        //    bd_it->active = false;
-        //    bd_it->reinsertion_point = std::next(bd_it);
-        //    bd_it->move_to_before(removed_bd_lst.end());
-        //    //removed_bd_lst.splice(removed_bd_lst.end(), bdll, bd_it);
-        //}
 
         auto filter_result = filter_domains(workspace,
                 bdll, left_ptrs, right_ptrs, g0, g1, v, w);
