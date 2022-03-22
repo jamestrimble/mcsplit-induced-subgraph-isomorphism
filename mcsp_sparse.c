@@ -42,6 +42,8 @@ static struct argp_option options[] = {
     {"verbose", 'v', 0, 0, "Verbose output"},
     {"dimacs", 'd', 0, 0, "Read DIMACS format"},
     {"lad", 'l', 0, 0, "Read LAD format"},
+    {"gfd", 'g', 0, 0, "Read .gfd format"},
+    {"directed", 'i', 0, 0, "Directed"},
     {"enumerate", 'e', 0, 0, "Count solutions"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
     {"timeout", 't', "timeout", 0, "Specify a timeout (seconds)"},
@@ -53,6 +55,7 @@ static struct {
     bool verbose;
     bool dimacs;
     bool lad;
+    bool gfd;
     bool directed;
     bool enumerate;
     bool edge_labelled;
@@ -93,11 +96,19 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
                 fail("The -d and -l options cannot be used together.\n");
             arguments.lad = true;
             break;
+        case 'g':
+            arguments.gfd = true;
+            arguments.vertex_labelled = true;
+            arguments.directed = true;
+            break;
         case 'q':
             arguments.quiet = true;
             break;
         case 'v':
             arguments.verbose = true;
+            break;
+        case 'i':
+            arguments.directed = true;
             break;
         case 'e':
             arguments.enumerate = true;
@@ -607,7 +618,8 @@ NewBidomain * do_deletions(vector<BdIt> & split_bds)
 SplitAndDeletedLists filter_domains(
         Workspace & workspace,
         BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
-        const Graph & g0, const Graph & g1, int v, int w)
+        const vector<vector<int>> & g0_adj_lists, const vector<vector<int>> & g1_adj_lists,
+        int v, int w)
 {
     vector<BdIt> & split_bds = workspace.split_bds;
     split_bds.clear();
@@ -615,9 +627,9 @@ SplitAndDeletedLists filter_domains(
     workspace.left_swap_vv.clear();
     workspace.right_swap_vv.clear();
 
-    partition_left(g0.filtered_adj_lists[v], left_ptrs, split_bds, workspace.left_swap_vv);
+    partition_left(g0_adj_lists[v], left_ptrs, split_bds, workspace.left_swap_vv);
 
-    partition_right(g1.filtered_adj_lists[w], right_ptrs, split_bds, workspace.right_swap_vv);
+    partition_right(g1_adj_lists[w], right_ptrs, split_bds, workspace.right_swap_vv);
 
     for (auto bd_it : split_bds) {
         bd_it->undergoing_split = false;
@@ -769,16 +781,30 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
         }
 
         auto filter_result = filter_domains(workspace,
-                bdll, left_ptrs, right_ptrs, g0, g1, v, w);
+                bdll, left_ptrs, right_ptrs, g0.adj_lists, g1.adj_lists, v, w);
 
         if (!filter_result.quit_early) {
-            current.push_back(VtxPair(v, w));
+            if (arguments.directed) {
+                auto filter_result2 = filter_domains(workspace,
+                        bdll, left_ptrs, right_ptrs, g0.in_edge_lists, g1.in_edge_lists, v, w);
+                if (!filter_result2.quit_early) {
+                    current.push_back(VtxPair(v, w));
 
-            solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count,
-                    g0_remaining_deg);
+                    solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count,
+                            g0_remaining_deg);
 
-            current.pop_back();
+                    current.pop_back();
+                }
+                unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
+                        filter_result2.split_bds_list, filter_result2.deleted_bds_list);
+            } else {
+                current.push_back(VtxPair(v, w));
 
+                solve(workspace, g0, g1, incumbent, current, bdll, left_ptrs, right_ptrs, solution_count,
+                        g0_remaining_deg);
+
+                current.pop_back();
+            }
             unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
                     filter_result.split_bds_list, filter_result.deleted_bds_list);
         }
@@ -801,6 +827,22 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
 std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
 {
+    //for (int i=0; i<g0.n; i++) {
+    //    cout << i << "   ";
+    //    for (int v : g0.adj_lists[i]) {
+    //        cout << " " << v;
+    //    }
+    //    cout << endl;
+    //}
+    //cout << endl;
+    //for (int i=0; i<g0.n; i++) {
+    //    cout << i << "   ";
+    //    for (int v : g0.in_edge_lists[i]) {
+    //        cout << " " << v;
+    //    }
+    //    cout << endl;
+    //}
+    //cout << endl;
     vector<int> left;  // the buffer of vertex indices for the left partitions
     vector<int> right;  // the buffer of vertex indices for the right partitions
     vector<int> new_left;
@@ -894,6 +936,11 @@ vector<int> calculate_degrees(const Graph & g) {
     for (int v=0; v<g.n; v++) {
         degree.push_back(g.adj_lists[v].size());
     }
+    if (arguments.directed) {
+        for (int v=0; v<g.n; v++) {
+            degree[v] += g.in_edge_lists[v].size();
+        }
+    }
     return degree;
 }
 
@@ -905,12 +952,20 @@ int main(int argc, char** argv) {
     set_default_arguments();
     argp_parse(&argp, argc, argv, 0, 0, 0);
 
-    char format = arguments.dimacs ? 'D' : arguments.lad ? 'L' : 'B';
+    char format = arguments.dimacs ? 'D' : arguments.lad ? 'L' : arguments.gfd ? 'G' : 'B';
     struct Graph g0 = readGraph(arguments.filename1, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
+
+    auto start_ = std::chrono::steady_clock::now();
+
     struct Graph g1 = readGraph(arguments.filename2, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
 
+    {
+        auto stop = std::chrono::steady_clock::now();
+        auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start_).count();
+        cout << "CPU time (ms):              " << time_elapsed << endl;
+    }
     if (g0.n > g1.n) {
         std::cout << "Error: pattern graph has more vertices than target graph." << std::endl;
         return 1;
@@ -963,6 +1018,11 @@ int main(int argc, char** argv) {
     struct Graph g0_sorted = induced_subgraph(g0, vv0);
     struct Graph g1_sorted = induced_subgraph(g1, vv1);
 
+    {
+        auto stop = std::chrono::steady_clock::now();
+        auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
+        cout << "CPU time (ms):              " << time_elapsed << endl;
+    }
     auto result = mcs(g0_sorted, g1_sorted);
     vector<VtxPair> solution = result.first;
     long long num_sols = result.second;
