@@ -20,9 +20,6 @@
 #include <stdlib.h>
 #include <string.h>
 
-#define MAX_SIZE_FOR_STRONGER_BOUND 30
-#define MAX_RATIO_FOR_STRONGER_BOUND 1.5
-
 using std::vector;
 using std::cout;
 using std::endl;
@@ -650,9 +647,7 @@ void unfilter_domains(
         vector<Ptrs> & left_ptrs,
         vector<Ptrs> & right_ptrs,
         NewBidomain *split_bds_list,
-        NewBidomain *deleted_bds,
-        const Graph & g0,
-        const Graph & g1)
+        NewBidomain *deleted_bds)
 {
     while (deleted_bds != nullptr) {
         NewBidomain & bd = *deleted_bds;
@@ -785,7 +780,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
             current.pop_back();
 
             unfilter_domains(workspace, bdll, left_ptrs, right_ptrs,
-                    filter_result.split_bds_list, filter_result.deleted_bds_list, g0, g1);
+                    filter_result.split_bds_list, filter_result.deleted_bds_list);
         }
 
         if (removed_bd) {
