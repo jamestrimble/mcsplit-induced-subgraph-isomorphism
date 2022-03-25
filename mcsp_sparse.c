@@ -330,7 +330,7 @@ struct Ptrs
 };
 
 void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
-        const Graph & g0, const Graph & g1, const vector<VtxPair>& current,
+        const SparseGraph & g0, const SparseGraph & g1, const vector<VtxPair>& current,
         BDLL & bdll)
 {
     cout << "Nodes: " << nodes << std::endl;
@@ -363,7 +363,7 @@ void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
     cout << "\n" << std::endl;
 }
 
-bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solution) {
+bool check_sol(const SparseGraph & g0, const SparseGraph & g1 , const vector<VtxPair> & solution) {
     return true;
     vector<bool> used_left(g0.n, false);
     vector<bool> used_right(g1.n, false);
@@ -384,7 +384,7 @@ bool check_sol(const Graph & g0, const Graph & g1 , const vector<VtxPair> & solu
     return true;
 }
 
-int calc_bound(Workspace & workspace, BDLL & bdll, const Graph & g0, const Graph & g1, int target)
+int calc_bound(Workspace & workspace, BDLL & bdll, const SparseGraph & g0, const SparseGraph & g1, int target)
 {
     int bound = 0;
     for (BdIt bd_it=bdll.begin(); bd_it!=bdll.end(); bd_it=bd_it->next) {
@@ -420,7 +420,7 @@ BdIt select_bidomain_heur_A(BDLL & domains)
     return best;
 }
 
-BdIt select_bidomain_heur_B(BDLL & domains, const Graph & g0)
+BdIt select_bidomain_heur_B(BDLL & domains, const SparseGraph & g0)
 {
     double best_score = INT_MIN;
     BdIt best = domains.end();
@@ -444,7 +444,7 @@ BdIt select_bidomain_heur_B(BDLL & domains, const Graph & g0)
     return best;
 }
 
-BdIt select_bidomain_heur_C(BDLL & domains, const Graph & g0, const vector<int> & g0_remaining_deg)
+BdIt select_bidomain_heur_C(BDLL & domains, const SparseGraph & g0, const vector<int> & g0_remaining_deg)
 {
     double best_score = INT_MIN;
     BdIt best = domains.end();
@@ -467,7 +467,7 @@ BdIt select_bidomain_heur_C(BDLL & domains, const Graph & g0, const vector<int> 
     return best;
 }
 
-BdIt select_bidomain(BDLL & domains, const Graph & g0, const vector<int> & g0_remaining_deg)
+BdIt select_bidomain(BDLL & domains, const SparseGraph & g0, const vector<int> & g0_remaining_deg)
 {
     if (arguments.heuristic == heur_A)
         return select_bidomain_heur_A(domains);
@@ -694,7 +694,7 @@ void unassign(int v, int w, BdIt bd_it,
     ++bd_it->r_end;
 }
 
-void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<VtxPair> & incumbent,
+void solve(Workspace & workspace, const SparseGraph & g0, const SparseGraph & g1, vector<VtxPair> & incumbent,
         vector<VtxPair> & current, BDLL & bdll, vector<Ptrs> & left_ptrs, vector<Ptrs> & right_ptrs,
         long long & solution_count, vector<int> & g0_remaining_deg)
 {
@@ -795,7 +795,7 @@ void solve(Workspace & workspace, const Graph & g0, const Graph & g1, vector<Vtx
 }
 
 // Returns a common subgraph and the number of induced subgraph isomorphisms found
-std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
+std::pair<vector<VtxPair>, long long> mcs(SparseGraph & g0, SparseGraph & g1)
 {
     //for (int i=0; i<g0.n; i++) {
     //    cout << i << "   ";
@@ -900,7 +900,7 @@ std::pair<vector<VtxPair>, long long> mcs(Graph & g0, Graph & g1)
     return {incumbent, solution_count};
 }
 
-vector<int> calculate_degrees(const Graph & g) {
+vector<int> calculate_degrees(const SparseGraph & g) {
     vector<int> degree;
     degree.reserve(g.n);
     for (int v=0; v<g.n; v++) {
@@ -926,9 +926,9 @@ int main(int argc, char** argv) {
 
     char format = arguments.dimacs ? 'D' : arguments.lad ? 'L' : arguments.gfd ? 'G' :
         arguments.vf ? 'V' : 'B';
-    struct Graph g0 = readGraph(arguments.filename1, format, arguments.directed,
+    struct SparseGraph g0 = readGraph(arguments.filename1, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
-    struct Graph g1 = readGraph(arguments.filename2, format, arguments.directed,
+    struct SparseGraph g1 = readGraph(arguments.filename2, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
 
     if (g0.n > g1.n) {
@@ -980,8 +980,8 @@ int main(int argc, char** argv) {
         return g0_dense ? (g1_deg[a]<g1_deg[b]) : (g1_deg[a]>g1_deg[b]);
     });
 
-    struct Graph g0_sorted = induced_subgraph(g0, vv0);
-    struct Graph g1_sorted = induced_subgraph(g1, vv1);
+    struct SparseGraph g0_sorted = induced_subgraph(g0, vv0);
+    struct SparseGraph g1_sorted = induced_subgraph(g1, vv1);
 
     auto result = mcs(g0_sorted, g1_sorted);
     vector<VtxPair> solution = result.first;

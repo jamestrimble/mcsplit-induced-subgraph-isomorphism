@@ -15,9 +15,9 @@ static void fail(std::string msg) {
     exit(1);
 }
 
-Graph::Graph(unsigned int n) : n(n), adj_lists(n), in_edge_lists(n), label(n) { }
+SparseGraph::SparseGraph(unsigned int n) : n(n), adj_lists(n), in_edge_lists(n), label(n) { }
 
-void add_edge(Graph& g, int v, int w, bool directed=false, unsigned int val=1) {
+void add_edge(SparseGraph& g, int v, int w, bool directed=false, unsigned int val=1) {
     if (v != w) {
         if (directed) {
             g.adj_lists[v].push_back(w);
@@ -33,12 +33,12 @@ void add_edge(Graph& g, int v, int w, bool directed=false, unsigned int val=1) {
     }
 }
 
-Graph induced_subgraph(struct Graph& g, std::vector<int> vv) {
+SparseGraph induced_subgraph(struct SparseGraph& g, std::vector<int> vv) {
     std::vector<int> vv_inv(vv.size(), -1);
     for (int i=0, sz=vv.size(); i<sz; i++) {
         vv_inv[vv[i]] = i;
     }
-    Graph subg(vv.size());
+    SparseGraph subg(vv.size());
     for (int i=0, sz=vv.size(); i<sz; i++) {
         int v = vv[i];
         for (int w : g.adj_lists[v]) {
@@ -59,25 +59,25 @@ Graph induced_subgraph(struct Graph& g, std::vector<int> vv) {
     return subg;
 }
 
-bool Graph::has_edge(int v, int w) const
+bool SparseGraph::has_edge(int v, int w) const
 {
     auto & lst = this->adj_lists[v];
     return std::find(lst.begin(), lst.end(), w) != lst.end();
 }
 
-bool Graph::has_filtered_edge(int v, int w) const
+bool SparseGraph::has_filtered_edge(int v, int w) const
 {
     auto & lst = this->filtered_adj_lists[v];
     return std::find(lst.begin(), lst.end(), w) != lst.end();
 }
 
-struct Graph readDimacsGraph(char* filename, bool directed, bool vertex_labelled) {
-    struct Graph g(0);
+struct SparseGraph readDimacsGraph(char* filename, bool directed, bool vertex_labelled) {
+    struct SparseGraph g(0);
     return g;
 }
 
-struct Graph readLadGraph(char* filename, bool directed) {
-    struct Graph g(0);
+struct SparseGraph readLadGraph(char* filename, bool directed) {
+    struct SparseGraph g(0);
     FILE* f;
     
     if ((f=fopen(filename, "r"))==NULL)
@@ -88,7 +88,7 @@ struct Graph readLadGraph(char* filename, bool directed) {
 
     if (fscanf(f, "%d", &nvertices) != 1)
         fail("Number of vertices not read correctly.\n");
-    g = Graph(nvertices);
+    g = SparseGraph(nvertices);
 
     // If edge (v,w) has been seen, then edges_seen will contain v * nvertices + w.
     std::unordered_set<unsigned long long> edges_seen;
@@ -124,10 +124,10 @@ struct Graph readLadGraph(char* filename, bool directed) {
     return g;
 }
 
-struct Graph readGfdGraph(char* filename) {
+struct SparseGraph readGfdGraph(char* filename) {
     bool directed = true;
 
-    struct Graph g(0);
+    struct SparseGraph g(0);
     FILE* f;
 
     char junk[2048];
@@ -142,7 +142,7 @@ struct Graph readGfdGraph(char* filename) {
         fail("File name not read correctly.\n");
     if (fscanf(f, "%d", &nvertices) != 1)
         fail("Number of vertices not read correctly.\n");
-    g = Graph(nvertices);
+    g = SparseGraph(nvertices);
 
     // If edge (v,w) has been seen, then edges_seen will contain v * nvertices + w.
     std::unordered_set<unsigned long long> edges_seen;
@@ -169,16 +169,60 @@ struct Graph readGfdGraph(char* filename) {
     return g;
 }
 
-struct Graph readBinaryGraph(char* filename, bool directed, bool edge_labelled,
-        bool vertex_labelled)
-{
-    struct Graph g(0);
+struct SparseGraph readVfGraph(char* filename) {
+    bool directed = true;
+
+    struct SparseGraph g(0);
+    FILE* f;
+
+    if ((f=fopen(filename, "r"))==NULL)
+        fail("Cannot open file");
+
+    int nvertices = 0;
+    int v, w;
+
+    if (fscanf(f, "%d", &nvertices) != 1)
+        fail("Number of vertices not read correctly.\n");
+    g = SparseGraph(nvertices);
+
+    // If edge (v,w) has been seen, then edges_seen will contain v * nvertices + w.
+    std::unordered_set<unsigned long long> edges_seen;
+
+    for (int i=0; i<nvertices; i++) {
+        int label;
+        if (fscanf(f, "%d %d", &v, &label) != 2)
+            fail("Label not read correctly.\n");
+        g.label[v] = label;
+    }
+    for (int i=0; i<nvertices; i++) {
+        int edge_count;
+        if (fscanf(f, "%d", &edge_count) != 1)
+            fail("Number of edges not read correctly.\n");
+        for (int j=0; j<edge_count; j++) {
+            if (fscanf(f, "%d %d", &v, &w) != 2)
+                fail("An edge was not read correctly.\n");
+            if (edges_seen.find(v * nvertices + w) == edges_seen.end()) {
+                edges_seen.insert(v * nvertices + w);
+                add_edge(g, v, w, directed);
+            }
+        }
+    }
+
+    fclose(f);
     return g;
 }
 
-struct Graph readGraph(char* filename, char format, bool directed, bool edge_labelled, bool vertex_labelled) {
-    struct Graph g(0);
+struct SparseGraph readBinaryGraph(char* filename, bool directed, bool edge_labelled,
+        bool vertex_labelled)
+{
+    struct SparseGraph g(0);
+    return g;
+}
+
+struct SparseGraph readGraph(char* filename, char format, bool directed, bool edge_labelled, bool vertex_labelled) {
+    struct SparseGraph g(0);
     if (format=='G') g = readGfdGraph(filename);
+    else if (format=='V') g = readVfGraph(filename);
     else if (format=='D') g = readDimacsGraph(filename, directed, vertex_labelled);
     else if (format=='L') g = readLadGraph(filename, directed);
     else if (format=='B') g = readBinaryGraph(filename, directed, edge_labelled, vertex_labelled);
@@ -186,7 +230,7 @@ struct Graph readGraph(char* filename, char format, bool directed, bool edge_lab
     return g;
 }
 
-void filter_adj_lists(Graph & g, const std::vector<bool> & active_vertices) {
+void filter_adj_lists(SparseGraph & g, const std::vector<bool> & active_vertices) {
     g.filtered_adj_lists = std::vector<std::vector<int>>(g.n);
     for (int v=0; v<g.n; v++) {
         for (int w : g.adj_lists[v]) {
