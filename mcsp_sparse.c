@@ -928,17 +928,9 @@ int main(int argc, char** argv) {
         arguments.vf ? 'V' : 'B';
     struct Graph g0 = readGraph(arguments.filename1, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
-
-    auto start_ = std::chrono::steady_clock::now();
-
     struct Graph g1 = readGraph(arguments.filename2, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
 
-    {
-        auto stop = std::chrono::steady_clock::now();
-        auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start_).count();
-        cout << "CPU time (ms):              " << time_elapsed << endl;
-    }
     if (g0.n > g1.n) {
         std::cout << "Error: pattern graph has more vertices than target graph." << std::endl;
         return 1;
@@ -991,11 +983,6 @@ int main(int argc, char** argv) {
     struct Graph g0_sorted = induced_subgraph(g0, vv0);
     struct Graph g1_sorted = induced_subgraph(g1, vv1);
 
-    {
-        auto stop = std::chrono::steady_clock::now();
-        auto time_elapsed = std::chrono::duration_cast<std::chrono::milliseconds>(stop - start).count();
-        cout << "CPU time (ms):              " << time_elapsed << endl;
-    }
     auto result = mcs(g0_sorted, g1_sorted);
     vector<VtxPair> solution = result.first;
     long long num_sols = result.second;
