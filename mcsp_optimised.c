@@ -316,6 +316,35 @@ int partition_sz(vector<int>& all_vv, int start, int len, const vector<unsigned 
     return i;
 }
 
+void adj_counts(vector<int>& all_vv, int start, int len, const vector<unsigned int> & adjrow,
+        int *counts_out) {
+    for (int j=0; j<len; j++) {
+        unsigned a = adjrow[all_vv[start+j]];
+        ++counts_out[(a >> 15) | (a & 1)];
+    }
+}
+
+struct Partition3WayResult {
+    int lo;
+    int hi;
+};
+
+// for unlabelled digraphs
+Partition3WayResult partition3way(vector<int>& all_vv, int start, int len, const vector<unsigned int> & adjrow) {
+    int i=0, lo=0, hi=len;
+    while (i<hi) {
+        if (adjrow[all_vv[start+i]] == 1u << 16) {
+            std::swap(all_vv[start+lo++], all_vv[start+i]);
+            i++;
+        } else if (adjrow[all_vv[start+i]] == (1u << 16) + 1u) {
+            std::swap(all_vv[start+i], all_vv[start+(--hi)]);
+        } else {
+            i++;
+        }
+    }
+    return {lo, hi};
+}
+
 ////// Returns length of left half of array
 ////int __attribute__ ((noinline)) partition(vector<int>& all_vv, int start, int len, const vector<unsigned int> & adjrow) {
 ////            auto it = std::partition(
@@ -343,21 +372,35 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         bool multiway)
 {
     // An attempt at optimisation...
-    for (int i=d.size(); i--; ) {
-        const Bidomain &old_bd = d[i];
-        int l = old_bd.l;
-        int r = old_bd.r;
-        // After these two partitions, left_len and right_len are the lengths of the
-        // arrays of vertices with edges from v or w (int the directed case, edges
-        // either from or to v or w)
-        int left_len = partition_sz(left, l, old_bd.left_len, g0.adjmat[v]);
-        int right_len = partition_sz(right, r, old_bd.right_len, g1.adjmat[w]);
-        int left_len_noedge = old_bd.left_len - left_len;
-        int right_len_noedge = old_bd.right_len - right_len;
-        if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
-            // Stop early if we know that there are vertices in the first graph that can't be matched
-            // TODO: improve this for the edge-labelled case
-            return {};
+    if (multiway) {
+        for (int i=d.size(); i--; ) {
+            const Bidomain &old_bd = d[i];
+            int l = old_bd.l;
+            int r = old_bd.r;
+            int adj_counts_l[4] = {0};
+            int adj_counts_r[4] = {0};
+            adj_counts(left, l, old_bd.left_len, g0.adjmat[v], adj_counts_l);
+            adj_counts(right, r, old_bd.right_len, g1.adjmat[w], adj_counts_r);
+            for (int i=0; i<4; i++) {
+                if (adj_counts_l[i] > adj_counts_r[i]) {
+                    return {};
+                }
+            }
+        }
+    } else {
+        for (int i=d.size(); i--; ) {
+            const Bidomain &old_bd = d[i];
+            int l = old_bd.l;
+            int r = old_bd.r;
+            int left_len = partition_sz(left, l, old_bd.left_len, g0.adjmat[v]);
+            int right_len = partition_sz(right, r, old_bd.right_len, g1.adjmat[w]);
+            int left_len_noedge = old_bd.left_len - left_len;
+            int right_len_noedge = old_bd.right_len - right_len;
+            if ((left_len_noedge > right_len_noedge) || (left_len > right_len)) {
+                // Stop early if we know that there are vertices in the first graph that can't be matched
+                // TODO: improve this for the edge-labelled case
+                return {};
+            }
         }
     }
 
@@ -377,31 +420,14 @@ vector<Bidomain> filter_domains(const vector<Bidomain> & d, vector<int> & left,
         if (left_len_noedge && right_len_noedge)
             new_d.push_back({l+left_len, r+right_len, left_len_noedge, right_len_noedge, old_bd.is_adjacent});
         if (multiway && left_len && right_len) {
-            auto& adjrow_v = g0.adjmat[v];
-            auto& adjrow_w = g1.adjmat[w];
-            auto l_begin = std::begin(left) + l;
-            auto r_begin = std::begin(right) + r;
-            std::sort(l_begin, l_begin+left_len, [&](int a, int b)
-                    { return adjrow_v[a] < adjrow_v[b]; });
-            std::sort(r_begin, r_begin+right_len, [&](int a, int b)
-                    { return adjrow_w[a] < adjrow_w[b]; });
-            int l_top = l + left_len;
-            int r_top = r + right_len;
-            while (l<l_top && r<r_top) {
-                unsigned int left_label = adjrow_v[left[l]];
-                unsigned int right_label = adjrow_w[right[r]];
-                if (left_label < right_label) {
-                    l++;
-                } else if (left_label > right_label) {
-                    r++;
-                } else {
-                    int lmin = l;
-                    int rmin = r;
-                    do { l++; } while (l<l_top && adjrow_v[left[l]]==left_label);
-                    do { r++; } while (r<r_top && adjrow_w[right[r]]==left_label);
-                    new_d.push_back({lmin, rmin, l-lmin, r-rmin, true});
-                }
-            }
+            auto l_result = partition3way(left, l, left_len, g0.adjmat[v]);
+            auto r_result = partition3way(right, r, right_len, g1.adjmat[w]);
+            if (l_result.lo)
+                new_d.push_back({l, r, l_result.lo, r_result.lo, true});
+            if (l_result.hi != l_result.lo)
+                new_d.push_back({l + l_result.lo, r + r_result.lo, l_result.hi - l_result.lo, r_result.hi - r_result.lo, true});
+            if (left_len != l_result.hi)
+                new_d.push_back({l + l_result.hi, r + r_result.hi, left_len - l_result.hi, right_len - r_result.hi, true});
         } else if (left_len && right_len) {
             new_d.push_back({l, r, left_len, right_len, true});
         }
