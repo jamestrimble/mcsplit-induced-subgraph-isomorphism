@@ -293,6 +293,9 @@ struct Workspace {
     vector<BdIt> split_bds;
     NewBidomain *get_from_free_list()
     {
+#ifdef WITHOUT_OPTIMISATIONS
+        return new NewBidomain;
+#endif
         if (bd_free_list == nullptr) {
             bd_memory_pools.push_back(vector<NewBidomain>(100));
             for (NewBidomain & bd : bd_memory_pools.back()) {
@@ -306,6 +309,10 @@ struct Workspace {
     }
     void add_to_free_list(NewBidomain * bd)
     {
+#ifdef WITHOUT_OPTIMISATIONS
+        delete bd;
+        return;
+#endif
         bd->next_in_free_list = bd_free_list;
         bd_free_list = bd;
     }
