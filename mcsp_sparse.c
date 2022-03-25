@@ -43,6 +43,7 @@ static struct argp_option options[] = {
     {"dimacs", 'd', 0, 0, "Read DIMACS format"},
     {"lad", 'l', 0, 0, "Read LAD format"},
     {"gfd", 'g', 0, 0, "Read .gfd format"},
+    {"VF", 'V', 0, 0, "Read vf format"},
     {"directed", 'i', 0, 0, "Directed"},
     {"enumerate", 'e', 0, 0, "Count solutions"},
     {"vertex-labelled-only", 'x', 0, 0, "Use vertex labels, but not edge labels"},
@@ -56,6 +57,7 @@ static struct {
     bool dimacs;
     bool lad;
     bool gfd;
+    bool vf;
     bool directed;
     bool enumerate;
     bool edge_labelled;
@@ -98,6 +100,11 @@ static error_t parse_opt (int key, char *arg, struct argp_state *state) {
             break;
         case 'g':
             arguments.gfd = true;
+            arguments.vertex_labelled = true;
+            arguments.directed = true;
+            break;
+        case 'V':
+            arguments.vf = true;
             arguments.vertex_labelled = true;
             arguments.directed = true;
             break;
@@ -465,6 +472,9 @@ BdIt select_bidomain_heur_B(BDLL & domains, const Graph & g0)
             return bd_it;
         }
         int deg = g0.adj_lists[*std::min_element(bd.l, bd.l_end)].size();
+        if (arguments.directed) {
+            deg += g0.in_edge_lists[*std::min_element(bd.l, bd.l_end)].size();
+        }
         double score = double(deg) / right_len;
         if (score > best_score) {
             best_score = score;
@@ -951,8 +961,11 @@ int sum(const vector<int> & vec) {
 int main(int argc, char** argv) {
     set_default_arguments();
     argp_parse(&argp, argc, argv, 0, 0, 0);
+    if (arguments.directed && arguments.heuristic == heur_C)
+        return 1;
 
-    char format = arguments.dimacs ? 'D' : arguments.lad ? 'L' : arguments.gfd ? 'G' : 'B';
+    char format = arguments.dimacs ? 'D' : arguments.lad ? 'L' : arguments.gfd ? 'G' :
+        arguments.vf ? 'V' : 'B';
     struct Graph g0 = readGraph(arguments.filename1, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
 
@@ -1071,4 +1084,3 @@ int main(int argc, char** argv) {
         }
     }
 }
-
