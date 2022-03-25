@@ -1,3 +1,5 @@
+**This archived repository contains old code in which I tried out lots of ideas. The programs are likely to have bugs.  For more reliable, more recent programs, see https://github.com/jamestrimble/mcsplit-si***
+
 # Using McSplit to solve induced subgraph isomorphism
 
 This is a slightly modified version of the sequential C++ program used in our IJCAI 2017 paper.
