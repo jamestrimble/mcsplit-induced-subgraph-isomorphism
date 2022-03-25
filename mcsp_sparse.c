@@ -323,41 +323,6 @@ private:
     std::list<vector<NewBidomain>> bd_memory_pools;
 };
 
-//// A doubly-linked list of bidomains with dummy head and tail nodes
-//struct BDLL
-//{
-//    Bidomain head;
-//    Bidomain tail;
-//
-//    BDLL() {
-//        head.next = &tail;
-//        tail.prev = &head;
-//    }
-//
-//    Bidomain *add_bd_before(Bidomain *bd) {
-//        Bidomain *new_bd = new Bidomain();
-//        new_bd->next = bd;
-//        new_bd->prev = bd->prev;
-//        bd->prev->next = new_bd;
-//        bd->prev = new_bd;
-//        return new_bd;
-//    }
-//
-//    Bidomain *add_bd_after(Bidomain *bd) {
-//        Bidomain *new_bd = new Bidomain();
-//        new_bd->prev = bd;
-//        new_bd->next = bd->next;
-//        bd->next->prev = new_bd;
-//        bd->next = new_bd;
-//        return new_bd;
-//    }
-//
-//    void remove_bd(Bidomain *bd) {
-//        bd->prev->next = bd->next;
-//        bd->next->prev = bd->prev;
-//    }
-//};
-
 struct Ptrs
 {
     BdIt bd_it;
@@ -384,18 +349,6 @@ void show(const vector<Ptrs> & left_ptrs, const vector<Ptrs> & right_ptrs,
         std::cout << std::endl;
     }
     cout << "---------------------" << std::endl;
-//    for (int i=0; i<g0.n; i++) {
-//        if (*left_ptrs[i].vtx_it != i) {
-//            cout << "PROBLEM WITH g0 VERTEX " << i << "!!!" << endl;
-//        }
-//    }
-//    for (int i=0; i<g1.n; i++) {
-//        cout << i << " " << g1.n << std::endl;
-//        cout << &*right_ptrs[i].vtx_it << std::endl;
-//        if (*right_ptrs[i].vtx_it != i) {
-//            cout << "PROBLEM WITH g1 VERTEX " << i << "!!!" << endl;
-//        }
-//    }
     for (BdIt bd_it=bdll.begin(); bd_it!=bdll.end(); bd_it=bd_it->next) {
         cout << "Left  ";
         for (It it=bd_it->l; it!=bd_it->l_end; it++)
