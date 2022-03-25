@@ -866,6 +866,10 @@ std::pair<vector<VtxPair>, long long> mcs(SparseGraph & g0, SparseGraph & g1)
         int left_len = left.size() - start_l;
         int right_len = right.size() - start_r;
 
+        if (left_len > right_len) {
+            return {{}, 0};
+        }
+
         NewBidomain *new_elem = workspace.get_from_free_list();
         new_elem->insert_before(&bdll.head);
         new_elem->initialise(new_left.begin() + start_l,
@@ -930,11 +934,6 @@ int main(int argc, char** argv) {
             arguments.edge_labelled, arguments.vertex_labelled);
     struct SparseGraph g1 = readGraph(arguments.filename2, format, arguments.directed,
             arguments.edge_labelled, arguments.vertex_labelled);
-
-    if (g0.n > g1.n) {
-        std::cout << "Error: pattern graph has more vertices than target graph." << std::endl;
-        return 1;
-    }
 
     std::thread timeout_thread;
     std::mutex timeout_mutex;
